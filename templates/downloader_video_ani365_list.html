@@ -40,17 +40,17 @@ var sub = "{{arg['sub']}}";
 var current_data = null;
 
 $(document).ready(function(){
-  request_search('1');
+  global_sub_request_search('1');
 });
 
 $("#search").click(function(e) {
   e.preventDefault();
-  request_search('1');
+  global_sub_request_search('1');
 });
 
 $("body").on('click', '#page', function(e){
   e.preventDefault();
-  request_search($(this).data('page'));
+  global_sub_request_search($(this).data('page'));
 });
 
 $("#reset_btn").click(function(e) {
@@ -58,7 +58,7 @@ $("#reset_btn").click(function(e) {
   document.getElementById("order").value = 'desc';
   document.getElementById("option").value = 'all';
   document.getElementById("search_word").value = '';
-  request_search('1')
+  global_sub_request_search('1')
 });
 
 
@@ -76,7 +76,7 @@ $("body").on('click', '#self_search_btn', function(e){
   e.preventDefault();
   var search_word = $(this).data('title');
   document.getElementById("search_word").value = search_word;
-  request_search('1')
+  global_sub_request_search('1')
 });
 
 $("body").on('click', '#remove_btn', function(e) {
@@ -93,7 +93,7 @@ $("body").on('click', '#remove_btn', function(e) {
         $.notify('<strong>삭제되었습니다.</strong>', {
           type: 'success'
         });
-        request_search(current_data.paging.current_page, false)
+        global_sub_request_search(current_data.paging.current_page, false)
       } else {
         $.notify('<strong>삭제 실패</strong>', {
           type: 'warning'
@@ -112,10 +112,10 @@ $("body").on('click', '#request_btn', function(e){
 
 
 function make_list(data) {
-  console.log(data)
+  //console.log(data)
   str = '';
   for (i in data) {
-    console.log(data[i])
+    //console.log(data[i])
     str += m_row_start();
     str += m_col(1, data[i].id);
     tmp = (data[i].status == 'completed') ? '완료' : '미완료';
