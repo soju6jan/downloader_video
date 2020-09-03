@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div>
+  {{ macros.m_button_group([['reset_btn', '초기화'], ['delete_completed_btn', '완료 목록 삭제'], ['go_ffmpeg_btn', 'Go FFMPEG']])}}
+  {{ macros.m_row_start('0') }}
+  {{ macros.m_row_end() }}
+  {{ macros.m_hr_head_top() }}
+  {{ macros.m_row_start('0') }}
+  {{ macros.m_col(1,  macros.m_strong('Idx')) }}
+  {{ macros.m_col(2,  macros.m_strong('CreatedTime')) }}
+  {{ macros.m_col(4,  macros.m_strong('Filename')) }}
+  {{ macros.m_col(3,  macros.m_strong('Status')) }}
+  {{ macros.m_col(2,  macros.m_strong('Action')) }}
+  {{ macros.m_row_end() }}
+  {{ macros.m_hr_head_bottom() }}
+  <div id="download_list_div"></div>
+</div> <!--전체-->
+
+<script type="text/javascript">
+var package_name = "{{arg['package_name'] }}";
+var sub = "{{arg['sub'] }}";
+var current_data = null;
+socket = io.connect(window.location.protocol + "//" + document.domain + ":" + location.port + "/" + package_name + '/' + sub);
+
+$(document).ready(function(){
+});
+
+socket.on('start', function(data){
+  on_start();
+});
+socket.on('list_refresh', function(data){
+  on_start()
+});
+
+socket.on('status', function(data){
+  on_status(data)
+});
+
+
+function on_start() {
+  $.ajax({
+    url: '/' + package_name + '/ajax/' + sub + '/entity_list',
+    type: "POST", 
+    cache: false,
+    data: {},
+    dataType: "json",
+    success: function (data) {
+      make_download_list(data)
+    }
+  });
+}
+
+
+function on_status(data) {
+  //console.log(data)
+  tmp = document.getElementById("progress_"+data.entity_id)
+  if (tmp != null) {
+    document.getElementById("progress_"+data.entity_id).style.width = data.ffmpeg_percent+ '%';
+    document.getElementById("progress_"+data.entity_id+"_label").innerHTML = data.ffmpeg_status_kor + "(" + data.ffmpeg_percent + "%)" + ' ' + ((data.ffmpeg_arg != null)?data.ffmpeg_arg.data.current_speed:'')
+  }
+}
+
+function make_download_list(data) {
+  str = '';
+  for (i in data) {
+    str += m_row_start();
+    str += m_col(1, data[i].entity_id);
+    str += m_col(2, data[i].created_time);
+    str += m_col(4, (data[i].filename != null) ? data[i].filename : '');
+
+    label = data[i].ffmpeg_status_kor
+    if (data[i].ffmpeg_percent != 0) {
+      label += '(' + data[i].ffmpeg_percent + '%)'
+    }
+    tmp = m_progress('progress_'+data[i].entity_id, data[i].ffmpeg_percent,  label)
+    str += m_col(3, tmp);
+    tmp = m_button('program_cancel_btn', '취소', [{'key':'id', 'value':data[i].entity_id}]);
+    tmp = m_button_group(tmp)
+    str += m_col(2, tmp)
+    str += m_row_end();
+    if (i != data.length -1) str += m_hr(0);
+  }
+  document.getElementById("download_list_div").innerHTML = str;
+}
+
+$("body").on('click', '#program_cancel_btn', function(e){
+  e.preventDefault();
+  entity_id = $(this).data('id')
+  send_data = {'command':'cancel', 'entity_id':entity_id}
+  queue_command(send_data)
+});
+
+$("body").on('click', '#reset_btn', function(e){
+  e.preventDefault();
+  entity_id = $(this).data('id')
+  send_data = {'command':'reset', 'entity_id':-1}
+  queue_command(send_data)
+});
+
+$("body").on('click', '#delete_completed_btn', function(e){
+  e.preventDefault();
+  entity_id = $(this).data('id')
+  send_data = {'command':'delete_completed', 'entity_id':-1}
+  queue_command(send_data)
+});
+
+function queue_command(data) {
+  $.ajax({
+    url: '/' + package_name + '/ajax/' + sub + '/queue_command',
+    type: "POST", 
+    cache: false,
+    data: data,
+    dataType: "json",
+    success: function (ret) {
+      if (ret.ret == 'notify') {
+        $.notify('<strong>'+ ret.log +'</strong>', {type: 'warning'});
+      }
+      on_start();
+    }
+  });
+}
+
+$("body").on('click', '#go_ffmpeg_btn', function(e){
+  e.preventDefault();
+  $(location).attr('href', '/ffmpeg')
+});
+
+</script>    
+{% endblock %}

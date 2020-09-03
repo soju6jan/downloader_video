@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div>
+  <form id='program_list'>
+  {{ macros.setting_input_text_and_buttons('code', '작품 Code', [['analysis_btn', '분석'], ['go_ani365_btn', 'Go ani365']], desc='예) https://www.ani365.me/kr/detail/Demon-Slayer 이나 Demon-Slaye') }}
+  </form>
+  <form id="program_auto_form">
+  <div id='episode_list'></div>
+  <form>
+</div> <!--전체-->
+
+<script type="text/javascript">
+var package_name = "{{arg['package_name'] }}";
+var sub = "{{arg['sub'] }}";
+var ani365_url = "{{arg['ani365_url']}}";
+var current_data = null;
+
+$(document).ready(function(){
+  if ( "{{arg['ani365_current_code']}}" != "" ) {
+    document.getElementById("code").value = "{{arg['ani365_current_code']}}";
+    document.getElementById("analysis_btn").click();
+  }
+});
+
+$("body").on('click', '#analysis_btn', function(e){
+  e.preventDefault();
+  code = document.getElementById("code").value
+  $.ajax({
+    url: '/' + package_name + '/ajax/' + sub + '/analysis',
+    type: "POST",
+    cache: false,
+    data: {code:code},
+    dataType: "json",
+    success: function (ret) {
+      if (ret.ret == 'success') {
+        make_program(ret.data)
+      } else {
+        $.notify('<strong>분석 실패</strong><br>' + ret.log, {type: 'warning'});
+      }
+    }
+  });
+});
+
+function make_program(data) {
+  current_data = data;
+  str = '';
+  tmp = '<div class="form-inline">'
+  tmp += m_button('check_download_btn', '선택 다운로드 추가', []);
+  tmp += m_button('all_check_on_btn', '전체 선택', []);
+  tmp += m_button('all_check_off_btn', '전체 해제', []);
+  /*
+  tmp += '&nbsp;&nbsp;&nbsp;&nbsp;<input id="new_title" name="new_title" class="form-control form-control-sm" value="'+data.title+'">'
+  tmp += '</div>'
+  tmp += m_button('apply_new_title_btn', '저장폴더명, 파일명 제목 변경', []);
+  tmp += m_button('search_tvdb_btn', 'TVDB', []);
+  tmp = m_button_group(tmp)
+  */
+  str += tmp
+  // program
+  str += m_hr_black();
+  str += m_row_start(0);
+  tmp = ''
+  if (data.image != null) 
+    tmp = '<img src="' + ani365_url + '/upload/series/' + data.image + '" class="img-fluid">';
+  str += m_col(3, tmp)
+  tmp = ''
+  tmp += m_row_start(2) + m_col(3, '제목', 'right') + m_col(9, data.title) + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '원제', 'right') + m_col(9, data.des._otit) + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '감독', 'right') + m_col(9, data.des._dir) + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '제작사', 'right') + m_col(9, data.des._pub) + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '장르', 'right') + m_col(9, data.des._tag.join(' | ')) + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '분류', 'right') + m_col(9, data.des._classifi) + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '방영일', 'right') + m_col(9, data.date+'('+data.day+')') + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '등급', 'right') + m_col(9, data.des._grade) + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '줄거리', 'right') + m_col(9, data.ser_description) + m_row_end();
+  str += m_col(9, tmp)
+  str += m_row_end();
+  
+  str += m_hr_black();
+  for (i in data.episode) {
+    str += m_row_start(); tmp = '';
+    if (data.episode[i].thumbnail)
+      tmp = '<img src="https://www.theforstreaming.com/thumbnail/' + data.episode[i].thumbnail + '" class="img-fluid">'
+    str += m_col(3, tmp)
+    tmp = '<strong>' + data.episode[i].title+ '</strong>';
+    tmp += '<br>';
+    tmp += data.episode[i].date + '<br>';
+    
+    tmp += '<div class="form-inline">'
+    tmp += '<input id="checkbox_'+i+'" name="checkbox_'+i+'" type="checkbox" checked data-toggle="toggle" data-on="선 택" data-off="-" data-onstyle="success" data-offstyle="danger" data-size="small">&nbsp;&nbsp;&nbsp;&nbsp;'
+    tmp += m_button('add_queue_btn', '다운로드 추가', [{'key':'idx', 'value':i}])
+    tmp += '</div>'
+    str += m_col(9, tmp)
+    str += m_row_end();
+    if (i != data.length -1) str += m_hr(0);
+  }
+  document.getElementById("episode_list").innerHTML = str;
+  $('input[id^="checkbox_"]').bootstrapToggle()
+}
+
+$("body").on('click', '#all_check_on_btn', function(e){
+  e.preventDefault();
+  $('input[id^="checkbox_"]').bootstrapToggle('on')
+});
+
+$("body").on('click', '#all_check_off_btn', function(e){
+  e.preventDefault();
+  $('input[id^="checkbox_"]').bootstrapToggle('off')
+});
+
+$("body").on('click', '#add_queue_btn', function(e){
+  e.preventDefault();
+  data = current_data.episode[$(this).data('idx')];
+  $.ajax({
+    url: '/' + package_name + '/ajax/' + sub + '/add_queue',
+    type: "POST", 
+    cache: false,
+    data: {data:JSON.stringify(data)},
+    dataType: "json",
+    success: function (data) {
+      if (data.ret == 'enqueue_db_append' || data.ret == 'enqueue_db_exist') {
+        $.notify('<strong>다운로드 작업을 추가 하였습니다.</strong>', {type: 'success'});
+      } else if (data.ret == 'queue_exist') {
+        $.notify('<strong>이미 큐에 있습니다. 삭제 후 추가하세요.</strong>', {type: 'warning'});
+      } else if (data.ret == 'db_completed') {
+        $.notify('<strong>DB에 완료 기록이 있습니다.</strong>', {type: 'warning'});
+      } else {
+        $.notify('<strong>추가 실패</strong><br>' + ret.log, {type: 'warning'});
+      }
+    }
+  });
+});
+
+$("body").on('click', '#check_download_btn', function(e){
+  e.preventDefault();
+  all = $('input[id^="checkbox_"]');
+  data = [];
+  for (i in all) {
+    if (all[i].checked) {
+      idx = parseInt(all[i].id.split('_')[1])
+      data.push(current_data.episode[idx]);
+    }
+  }
+  if (data.length == 0) {
+    $.notify('<strong>선택하세요.</strong>', {type: 'warning'});
+    return;
+  }
+  $.ajax({
+    url: '/' + package_name + '/ajax/' + sub + '/add_queue_checked_list',
+    type: "POST", 
+    cache: false,
+    data: {data:JSON.stringify(data)},
+    dataType: "json",
+    success: function (data) {
+      $.notify('<strong>백그라운드로 작업을 추가합니다.</strong>', {type: 'success'});
+    }
+  });
+});
+
+$("body").on('click', '#go_ani365_btn', function(e){
+  e.preventDefault();
+  window.open("{{arg['ani365_url']}}", "_blank");
+});
+
+$("body").on('click', '#search_tvdb_btn', function(e){
+  e.preventDefault();
+  new_title = document.getElementById("new_title").value
+  url = 'https://www.thetvdb.com/search?query=' + new_title
+  window.open(url, "_blank");
+});
+</script>
+{% endblock %}

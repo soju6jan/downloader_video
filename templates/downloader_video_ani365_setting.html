@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div>
+  {{ macros.m_button_group([['global_setting_save_btn', '설정 저장']])}}
+  {{ macros.m_row_start('5') }}
+  {{ macros.m_row_end() }}
+  <nav>  
+    {{ macros.m_tab_head_start() }}
+      {{ macros.m_tab_head2('normal', '일반', true) }}
+      {{ macros.m_tab_head2('auto', '홈화면 자동', false) }}
+      {{ macros.m_tab_head2('action', '기타', false) }}
+    {{ macros.m_tab_head_end() }}
+  </nav>
+  <form id="setting">
+  <div class="tab-content" id="nav-tabContent">
+  {{ macros.m_tab_content_start('normal', true) }}
+    {{ macros.setting_input_text_and_buttons('ani365_url', 'ani365 URL', [['go_btn', 'GO']], value=arg['ani365_url']) }}
+    {{ macros.setting_input_text('ani365_download_path', '저장 폴더', value=arg['ani365_download_path'], desc='정상적으로 다운 완료 된 파일이 이동할 폴더 입니다. ') }}
+    {{ macros.setting_input_int('ani365_max_ffmpeg_process_count', '동시 다운로드 수', value=arg['ani365_max_ffmpeg_process_count'], desc='동시에 다운로드 할 에피소드 갯수입니다.') }}
+    {{ macros.setting_checkbox('ani365_order_desc', '요청 화면 최신순 정렬', value=arg['ani365_order_desc'], desc='On : 최신화부터, Off : 1화부터') }}
+    {{ macros.setting_checkbox('ani365_auto_make_folder', '제목 폴더 생성', value=arg['ani365_auto_make_folder'], desc='제목으로 폴더를 생성하고 폴더 안에 다운로드합니다.') }}
+    <div id="ani365_auto_make_folder_div" class="collapse">
+      {{ macros.setting_input_text('ani365_finished_insert', '완결 표시', col='3', value=arg['ani365_finished_insert'], desc=['완결된 컨텐츠 폴더명 앞에 넣을 문구입니다.']) }}
+      {{ macros.setting_checkbox('ani365_auto_make_season_folder', '시즌 폴더 생성', value=arg['ani365_auto_make_season_folder'], desc=['On : Season 번호 폴더를 만듭니다.']) }}
+      
+    </div>
+    {{ macros.setting_checkbox('ani365_incompleted_auto_enqueue', '자동으로 다시 받기', value=arg['ani365_incompleted_auto_enqueue'], desc=['On : 플러그인 로딩시 미완료인 항목은 자동으로 다시 받습니다.']) }}
+    
+
+
+  {{ macros.m_tab_content_end() }}
+
+  {{ macros.m_tab_content_start('auto', false) }}
+    {{ macros.setting_global_scheduler_sub_button(arg['scheduler'], arg['is_running']) }}
+    {{ macros.setting_input_text('ani365_interval', '스케쥴링 실행 정보', value=arg['ani365_interval'], col='3', desc=['Inverval(minute 단위)이나 Cron 설정']) }}
+    {{ macros.setting_checkbox('ani365_auto_start', '시작시 자동실행', value=arg['ani365_auto_start'], desc='On : 시작시 자동으로 스케쥴러에 등록됩니다.') }}
+
+    {{ macros.setting_input_textarea('ani365_auto_code_list', '자동 다운로드할 작품 코드', desc=['all 입력시 모두 받기', '구분자 | 또는 엔터'], value=arg['ani365_auto_code_list'], row='10') }}
+
+    {{ macros.setting_checkbox('ani365_auto_mode_all', '에피소드 모두 받기', value=arg['ani365_auto_mode_all'], desc=['On : 이전 에피소드를 모두 받습니다.', 'Off : 최신 에피소드만 받습니다.']) }}
+  {{ macros.m_tab_content_end() }}
+
+  {{ macros.m_tab_content_start('action', false) }}
+    {{ macros.setting_button([['global_one_execute_sub_btn', '1회 실행']], left='1회 실행' ) }}
+    {{ macros.setting_button([['global_reset_db_sub_btn', 'DB 초기화']], left='DB정리' ) }}
+  {{ macros.m_tab_content_end() }}
+
+  </div><!--tab-content-->
+  </form>
+</div> <!--전체-->
+
+<script type="text/javascript">
+var package_name = "{{arg['package_name'] }}";
+var sub = "{{arg['sub'] }}";
+var current_data = null;
+
+
+$(document).ready(function(){
+  use_collapse('ani365_auto_make_folder');
+});
+
+$('#ani365_auto_make_folder').change(function() {
+  use_collapse('ani365_auto_make_folder');
+});
+
+
+$("body").on('click', '#go_btn', function(e){
+  e.preventDefault();
+  url = document.getElementById("ani365_url").value
+  window.open(url, "_blank");
+});
+
+</script>    
+{% endblock %}
