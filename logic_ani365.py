@@ -9,7 +9,7 @@ import requests
 from flask import request, render_template, jsonify
 from sqlalchemy import or_, and_, func, not_, desc
 # sjva 공용
-from framework import db, path_data, socketio
+from framework import db, scheduler, path_data, socketio
 from framework.util import Util
 from framework.common.util import headers, get_json_with_auth_session
 from framework.common.plugin import LogicModuleBase, FfmpegQueueEntity, FfmpegQueue, default_route_socketio
@@ -49,6 +49,10 @@ class LogicAni365(LogicModuleBase):
         if sub in ['setting', 'queue', 'list', 'request']:
             if sub == 'request' and req.args.get('content_code') is not None:
                 arg['ani365_current_code'] = req.args.get('content_code')
+            if sub == 'setting':
+                job_id = '%s_%s' % (self.P.package_name, self.name)
+                arg['scheduler'] = str(scheduler.is_include(job_id))
+                arg['is_running'] = str(scheduler.is_running(job_id))
             return render_template('{package_name}_{module_name}_{sub}.html'.format(package_name=P.package_name, module_name=self.name, sub=sub), arg=arg)
         return render_template('sample.html', title='%s - %s' % (P.package_name, sub))
 

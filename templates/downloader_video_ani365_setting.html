@@ -23,21 +23,15 @@
     <div id="ani365_auto_make_folder_div" class="collapse">
       {{ macros.setting_input_text('ani365_finished_insert', '완결 표시', col='3', value=arg['ani365_finished_insert'], desc=['완결된 컨텐츠 폴더명 앞에 넣을 문구입니다.']) }}
       {{ macros.setting_checkbox('ani365_auto_make_season_folder', '시즌 폴더 생성', value=arg['ani365_auto_make_season_folder'], desc=['On : Season 번호 폴더를 만듭니다.']) }}
-      
     </div>
     {{ macros.setting_checkbox('ani365_incompleted_auto_enqueue', '자동으로 다시 받기', value=arg['ani365_incompleted_auto_enqueue'], desc=['On : 플러그인 로딩시 미완료인 항목은 자동으로 다시 받습니다.']) }}
-    
-
-
   {{ macros.m_tab_content_end() }}
 
   {{ macros.m_tab_content_start('auto', false) }}
     {{ macros.setting_global_scheduler_sub_button(arg['scheduler'], arg['is_running']) }}
     {{ macros.setting_input_text('ani365_interval', '스케쥴링 실행 정보', value=arg['ani365_interval'], col='3', desc=['Inverval(minute 단위)이나 Cron 설정']) }}
     {{ macros.setting_checkbox('ani365_auto_start', '시작시 자동실행', value=arg['ani365_auto_start'], desc='On : 시작시 자동으로 스케쥴러에 등록됩니다.') }}
-
     {{ macros.setting_input_textarea('ani365_auto_code_list', '자동 다운로드할 작품 코드', desc=['all 입력시 모두 받기', '구분자 | 또는 엔터'], value=arg['ani365_auto_code_list'], row='10') }}
-
     {{ macros.setting_checkbox('ani365_auto_mode_all', '에피소드 모두 받기', value=arg['ani365_auto_mode_all'], desc=['On : 이전 에피소드를 모두 받습니다.', 'Off : 최신 에피소드만 받습니다.']) }}
   {{ macros.m_tab_content_end() }}
 
