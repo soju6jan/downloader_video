@@ -40,7 +40,6 @@ class P(object):
     logic = None
     module_list = None
     home_module = 'ani365'
-    setting_save_after = None
 
 
 def initialize():
