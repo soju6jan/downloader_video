@@ -238,7 +238,7 @@ class Ani365QueueEntity(FfmpegQueueEntity):
                     folder_name = '%s %s' % (P.ModelSetting.get('ani365_finished_insert'), self.content_title)
                 else:
                     folder_name = self.content_title
-                folder_name = folder_name.strip()
+                folder_name = Util.change_text_for_use_filename ( folder_name.strip() )
                 self.savepath = os.path.join(self.savepath, folder_name)
                 if P.ModelSetting.get_bool('ani365_auto_make_season_folder'):
                     self.savepath = os.path.join(self.savepath, 'Season %s' % int(self.season))
