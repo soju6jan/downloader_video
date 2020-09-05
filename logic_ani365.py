@@ -135,6 +135,7 @@ class LogicAni365(LogicModuleBase):
             thread.daemon = True  
             thread.start()
 
+
     #########################################################
     def add(self, episode_info):
         if Ani365QueueEntity.is_exist(episode_info):
