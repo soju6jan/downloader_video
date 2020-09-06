@@ -135,6 +135,10 @@ class LogicAni365(LogicModuleBase):
             thread.daemon = True  
             thread.start()
 
+    def reset_db(self):
+        db.session.query(ModelAni365Item).delete()
+        db.session.commit()
+        return True
 
     #########################################################
     def add(self, episode_info):
