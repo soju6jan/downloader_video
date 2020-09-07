@@ -21,7 +21,7 @@ class LogicAni365(LogicModuleBase):
     db_default = {
         'ani365_db_version' : '1',
         'ani365_url' : 'https://www.ani365.me',
-        'ani365_download_path' : os.path.join(path_data, 'ani365', P.package_name),
+        'ani365_download_path' : os.path.join(path_data, P.package_name, 'ani365'),
         'ani365_auto_make_folder' : 'True',
         'ani365_auto_make_season_folder' : 'True',        
         'ani365_finished_insert' : u'[완결]',
@@ -250,12 +250,12 @@ class Ani365QueueEntity(FfmpegQueueEntity):
             self.filepath = os.path.join(self.savepath, self.filename)
             if not os.path.exists(self.savepath):
                 os.makedirs(self.savepath)
-            from framework.common.util import write_file, vtt_to_srt
+            from framework.common.util import write_file, convert_vtt_to_srt
             srt_filepath = os.path.join(self.savepath, self.filename.replace('.mp4', '.ko.srt'))
             if not os.path.exists(srt_filepath):
-                data = requests.get(self.vtt).content
-                data = vtt_to_srt(data)
-                write_file(data, srt_filepath)
+                vtt_data = requests.get(self.vtt).content
+                srt_data = convert_vtt_to_srt(vtt_data)
+                write_file(srt_data, srt_filepath)
         except Exception as e:
             P.logger.error('Exception:%s', e)
             P.logger.error(traceback.format_exc())
