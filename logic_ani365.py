@@ -160,7 +160,7 @@ class LogicAni365(LogicModuleBase):
 
     def get_series_info(self, code):
         try:
-            if self.current_data is not None and self.current_data['code'] == code:
+            if self.current_data is not None and 'code' in self.current_data and self.current_data['code'] == code:
                 return self.current_data
             if code.startswith('http'):
                 code = code.split('detail/')[1]
@@ -168,6 +168,8 @@ class LogicAni365(LogicModuleBase):
             url = P.ModelSetting.get('ani365_url') + '/get-series-detail'
             param = {'_si' : code, '_sea':''}
             data = get_json_with_auth_session(referer, url, param)
+            if data is None:
+                return
             data['code'] = code
             data['episode_order'] = 'asc'
             for epi in data['episode']:

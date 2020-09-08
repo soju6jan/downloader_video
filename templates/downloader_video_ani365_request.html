@@ -33,7 +33,7 @@ $("body").on('click', '#analysis_btn', function(e){
     data: {code:code},
     dataType: "json",
     success: function (ret) {
-      if (ret.ret == 'success') {
+      if (ret.ret == 'success' && ret.data != null) {
         make_program(ret.data)
       } else {
         $.notify('<strong>분석 실패</strong><br>' + ret.log, {type: 'warning'});
