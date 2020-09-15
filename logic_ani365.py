@@ -214,7 +214,7 @@ class Ani365QueueEntity(FfmpegQueueEntity):
 
     def make_episode_info(self):
         try:
-            url = 'https://www.issuepages.com/kr/episode/' + self.info['va']
+            url = 'https://www.jetcloud-list.cc/kr/episode/' + self.info['va']
             text = requests.get(url, headers=headers).content
             match = re.compile('src\=\"(?P<video_url>http.*?\.m3u8)').search(text)
             if match:
