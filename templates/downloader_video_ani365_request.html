@@ -62,7 +62,7 @@ function make_program(data) {
   str += m_row_start(0);
   tmp = ''
   if (data.image != null) 
-    tmp = '<img src="' + ani365_url + '/upload/series/' + data.image + '" class="img-fluid">';
+    tmp = '<img src="https://www.jetcloud.cc/series/' + data.image + '" class="img-fluid">';
   str += m_col(3, tmp)
   tmp = ''
   tmp += m_row_start(2) + m_col(3, '제목', 'right') + m_col(9, data.title) + m_row_end();
@@ -81,7 +81,7 @@ function make_program(data) {
   for (i in data.episode) {
     str += m_row_start(); tmp = '';
     if (data.episode[i].thumbnail)
-      tmp = '<img src="https://www.theforstreaming.com/thumbnail/' + data.episode[i].thumbnail + '" class="img-fluid">'
+      tmp = '<img src="https://www.jetcloud-list.cc/thumbnail/' + data.episode[i].thumbnail + '" class="img-fluid">'
     str += m_col(3, tmp)
     tmp = '<strong>' + data.episode[i].title+ '</strong>';
     tmp += '<br>';

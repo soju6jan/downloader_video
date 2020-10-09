@@ -17,6 +17,9 @@ from framework.common.plugin import LogicModuleBase, FfmpegQueueEntity, FfmpegQu
 from .plugin import P
 #########################################################
 
+
+
+
 class LogicAni365(LogicModuleBase):
     db_default = {
         'ani365_db_version' : '1',
@@ -33,7 +36,10 @@ class LogicAni365(LogicModuleBase):
         'ani365_auto_code_list' : 'all',
         'ani365_current_code' : '',
         'ani365_incompleted_auto_enqueue' : 'True',
+        'ani365_image_url_prefix_series' : 'https://www.jetcloud.cc/series/',
+        'ani365_image_url_prefix_episode' : 'https://www.jetcloud-list.cc/thumbnail/',
     }
+    current_headers = None
     
     def __init__(self, P):
         super(LogicAni365, self).__init__(P, 'setting', scheduler_desc='ani365 자동 다운로드')
@@ -105,7 +111,7 @@ class LogicAni365(LogicModuleBase):
         referer = P.ModelSetting.get('ani365_url') + '/kr'
         url = P.ModelSetting.get('ani365_url') + '/get-series'
         param = {'_ut' : '', 'dateft':''}
-        data = get_json_with_auth_session(referer, url, param)
+        data, LogicAni365.current_headers = get_json_with_auth_session(referer, url, param)
         conent_code_list = P.ModelSetting.get_list('ani365_auto_code_list', '|')
         for k1, day in data.items():
             if int(k1) < 8:
@@ -167,7 +173,7 @@ class LogicAni365(LogicModuleBase):
             referer = P.ModelSetting.get('ani365_url') + '/kr/detail/' + code
             url = P.ModelSetting.get('ani365_url') + '/get-series-detail'
             param = {'_si' : code, '_sea':''}
-            data = get_json_with_auth_session(referer, url, param)
+            data, LogicAni365.current_headers = get_json_with_auth_session(referer, url, param)
             if data is None:
                 return
             data['code'] = code
@@ -192,6 +198,7 @@ class Ani365QueueEntity(FfmpegQueueEntity):
         self.season = 1
         self.content_title = None
         self.make_episode_info()
+        
     
     def refresh_status(self):
         self.module_logic.socketio_callback('status', self.as_dict())
@@ -219,7 +226,7 @@ class Ani365QueueEntity(FfmpegQueueEntity):
             match = re.compile('src\=\"(?P<video_url>http.*?\.m3u8)').search(text)
             if match:
                 tmp = match.group('video_url')
-                m3u8 = requests.get(tmp).content
+                m3u8 = requests.get(tmp, headers=LogicAni365.current_headers).content
                 for t in m3u8.split('\n'):
                     if t.find('m3u8') != -1:
                         self.url = tmp.replace('master.m3u8', t.strip())
@@ -255,7 +262,7 @@ class Ani365QueueEntity(FfmpegQueueEntity):
             from framework.common.util import write_file, convert_vtt_to_srt
             srt_filepath = os.path.join(self.savepath, self.filename.replace('.mp4', '.ko.srt'))
             if not os.path.exists(srt_filepath):
-                vtt_data = requests.get(self.vtt).content
+                vtt_data = requests.get(self.vtt, headers=LogicAni365).content
                 srt_data = convert_vtt_to_srt(vtt_data)
                 write_file(srt_data, srt_filepath)
         except Exception as e:
