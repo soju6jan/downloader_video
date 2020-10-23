@@ -234,7 +234,7 @@ class Ani365QueueEntity(FfmpegQueueEntity):
             match = re.compile('src\=\"(?P<vtt_url>http.*?\kr.vtt)').search(text)
             if match:
                 self.vtt = u'%s' % match.group('vtt_url')
-            match = re.compile(ur'(?P<title>.*?)\s*((?P<season>\d+)기)?\s*((?P<epi_no>\d+)화)').search(self.info['title'])
+            match = re.compile(r'(?P<title>.*?)\s*((?P<season>\d+)%s)?\s*((?P<epi_no>\d+)%s)' % (u'기', u'화')).search(self.info['title'])
             if match:
                 self.content_title = match.group('title').strip()
                 if 'season' in match.groupdict() and match.group('season') is not None:
