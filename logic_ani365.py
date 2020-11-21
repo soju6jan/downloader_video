@@ -3,6 +3,7 @@
 # python
 import os, sys, traceback, re, json, threading
 from datetime import datetime
+import copy
 # third-party
 import requests
 # third-party
@@ -15,6 +16,7 @@ from framework.common.util import headers, get_json_with_auth_session
 from framework.common.plugin import LogicModuleBase, FfmpegQueueEntity, FfmpegQueue, default_route_socketio
 # 패키지
 from .plugin import P
+logger = P.logger
 #########################################################
 
 
@@ -23,7 +25,7 @@ from .plugin import P
 class LogicAni365(LogicModuleBase):
     db_default = {
         'ani365_db_version' : '1',
-        'ani365_url' : 'https://www.ani365.me',
+        'ani365_url' : 'https://www.ani365.org',
         'ani365_download_path' : os.path.join(path_data, P.package_name, 'ani365'),
         'ani365_auto_make_folder' : 'True',
         'ani365_auto_make_season_folder' : 'True',        
@@ -222,15 +224,37 @@ class Ani365QueueEntity(FfmpegQueueEntity):
     def make_episode_info(self):
         try:
             url = 'https://www.jetcloud-list.cc/kr/episode/' + self.info['va']
-            text = requests.get(url, headers=headers).content
+            text = requests.get(url, headers=headers).text
             match = re.compile('src\=\"(?P<video_url>http.*?\.m3u8)').search(text)
             if match:
                 tmp = match.group('video_url')
-                m3u8 = requests.get(tmp, headers=LogicAni365.current_headers).content
-                for t in m3u8.split('\n'):
-                    if t.find('m3u8') != -1:
-                        self.url = tmp.replace('master.m3u8', t.strip())
-                        self.quality = t.split('.m3u8')[0]
+                # 2020-11-06 master.m3u8 cloudflare가 막음. 화질별은 아직 안막음.
+                #m3u8 = requests.get(tmp, headers=LogicAni365.current_headers).text
+                #for t in m3u8.split('\n'):
+                #    if t.find('m3u8') != -1:
+                #        self.url = tmp.replace('master.m3u8', t.strip())
+                #        self.quality = t.split('.m3u8')[0]
+                master = tmp.replace('https://', '').split('/')
+                logger.debug(master)
+                master[1] += 's'
+                url_1080 = copy.deepcopy(master)
+                url_1080.insert(3, '1080')
+                url_1080[-1] = url_1080[-1].replace('master', '1080')
+                tmp = 'https://' + '/'.join(url_1080)
+                res = requests.get(tmp, headers=LogicAni365.current_headers)
+                if res.status_code == 200:
+                    self.url = tmp
+                    self.quality = '1080'
+                else:
+                    url_720 = copy.deepcopy(master)
+                    url_720.insert(3, '720')
+                    url_720[-1] = url_1080[-1].replace('master', '720')
+                    self.url = 'https://' + '/'.join(url_720)
+                    self.quality = '720'
+
+            #https://www.jetcloud-list.cc/getfiles/4yekl4kluyjldcefts7wuNtfQ7tRhoqyywN08Qb1bbg5ja32gv/1080/9cfea65b412beb6d02cda008326ec9d2/1080.m3u8
+            #https://www.jetcloud-list.cc/getfiles/uwcngQuksgs5fka9qe2eg7tPdkhNejchht6xija5dcqtafthjj/1080/9cfea65b412beb6d02cda008326ec9d2/1080.m3u8
+
             match = re.compile('src\=\"(?P<vtt_url>http.*?\kr.vtt)').search(text)
             if match:
                 self.vtt = u'%s' % match.group('vtt_url')
@@ -262,10 +286,14 @@ class Ani365QueueEntity(FfmpegQueueEntity):
             from framework.common.util import write_file, convert_vtt_to_srt
             srt_filepath = os.path.join(self.savepath, self.filename.replace('.mp4', '.ko.srt'))
             if not os.path.exists(srt_filepath):
-                vtt_data = requests.get(self.vtt, headers=LogicAni365.current_headers).content
+                vtt_data = requests.get(self.vtt, headers=LogicAni365.current_headers).text
                 srt_data = convert_vtt_to_srt(vtt_data)
                 write_file(srt_data, srt_filepath)
             self.headers = LogicAni365.current_headers
+
+            logger.debug(self.url)
+            logger.debug(self.quality)
+            logger.debug(srt_data)
 
         except Exception as e:
             P.logger.error('Exception:%s', e)
