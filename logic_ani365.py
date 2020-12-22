@@ -21,7 +21,6 @@ logger = P.logger
 
 
 
-
 class LogicAni365(LogicModuleBase):
     db_default = {
         'ani365_db_version' : '1',
@@ -234,6 +233,14 @@ class Ani365QueueEntity(FfmpegQueueEntity):
                 #    if t.find('m3u8') != -1:
                 #        self.url = tmp.replace('master.m3u8', t.strip())
                 #        self.quality = t.split('.m3u8')[0]
+
+                m3u8_text = requests.get(tmp, headers=headers).text
+                self.url = m3u8_text.split('\n')[-1].strip()
+                logger.debug(self.url)
+                self.quality = self.url.split('/')[-1].split('.')[0]
+
+                """
+                logger.debug(tmp)
                 master = tmp.replace('https://', '').split('/')
                 logger.debug(master)
                 master[1] += 's'
@@ -251,6 +258,8 @@ class Ani365QueueEntity(FfmpegQueueEntity):
                     url_720[-1] = url_1080[-1].replace('master', '720')
                     self.url = 'https://' + '/'.join(url_720)
                     self.quality = '720'
+                """
+                
 
             #https://www.jetcloud-list.cc/getfiles/4yekl4kluyjldcefts7wuNtfQ7tRhoqyywN08Qb1bbg5ja32gv/1080/9cfea65b412beb6d02cda008326ec9d2/1080.m3u8
             #https://www.jetcloud-list.cc/getfiles/uwcngQuksgs5fka9qe2eg7tPdkhNejchht6xija5dcqtafthjj/1080/9cfea65b412beb6d02cda008326ec9d2/1080.m3u8
@@ -290,11 +299,6 @@ class Ani365QueueEntity(FfmpegQueueEntity):
                 srt_data = convert_vtt_to_srt(vtt_data)
                 write_file(srt_data, srt_filepath)
             self.headers = LogicAni365.current_headers
-
-            logger.debug(self.url)
-            logger.debug(self.quality)
-            logger.debug(srt_data)
-
         except Exception as e:
             P.logger.error('Exception:%s', e)
             P.logger.error(traceback.format_exc())
