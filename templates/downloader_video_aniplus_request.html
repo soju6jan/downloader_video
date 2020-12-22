@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div>
+  <form id='program_list'>
+    {{ macros.setting_input_text_and_buttons('aniplus_search_keyword', '작품 검색', [['search_btn', '검색']], value=arg['aniplus_search_keyword'], desc=['검색어. contentSerial 값이 아래 작품 Code']) }}
+    {{ macros.setting_input_text_and_buttons('code', '작품 Code', [['analysis_btn', '분석'], ['go_aniplus_btn', 'Go aniplus']], desc='예) https://www.aniplus.me/kr/detail/Demon-Slayer 이나 Demon-Slaye') }}
+  </form>
+  <form id="program_auto_form">
+  <div id='episode_list'></div>
+  <form>
+</div> <!--전체-->
+
+<script type="text/javascript">
+var package_name = "{{arg['package_name'] }}";
+var sub = "{{arg['sub'] }}";
+var current_data = null;
+
+$(document).ready(function(){
+  if ( "{{arg['aniplus_current_code']}}" != "" ) {
+    document.getElementById("code").value = "{{arg['aniplus_current_code']}}";
+    document.getElementById("analysis_btn").click();
+  }
+});
+
+$("body").on('click', '#search_btn', function(e){
+  e.preventDefault();
+  keyword = document.getElementById("aniplus_search_keyword").value
+  $.ajax({
+    url: '/' + package_name + '/ajax/' + sub + '/search',
+    type: "POST",
+    cache: false,
+    data: {keyword:keyword},
+    dataType: "json",
+    success: function (ret) {
+      if (ret.ret == 'success' && ret.data != null) {
+        m_modal(ret.data, "검색 결과")
+      } else {
+        $.notify('<strong>분석 실패</strong><br>' + ret.log, {type: 'warning'});
+      }
+    }
+  });
+});
+
+$("body").on('click', '#analysis_btn', function(e){
+  e.preventDefault();
+  code = document.getElementById("code").value
+  $.ajax({
+    url: '/' + package_name + '/ajax/' + sub + '/analysis',
+    type: "POST",
+    cache: false,
+    data: {code:code},
+    dataType: "json",
+    success: function (ret) {
+      if (ret.ret == 'success' && ret.data != null) {
+        console.log(ret.data)
+        make_program(ret.data)
+      } else {
+        $.notify('<strong>분석 실패</strong><br>' + ret.log, {type: 'warning'});
+      }
+    }
+  });
+});
+
+function make_program(data) {
+  current_data = data;
+  str = '';
+  tmp = '<div class="form-inline">'
+  tmp += m_button('check_download_btn', '선택 다운로드 추가', []);
+  tmp += m_button('all_check_on_btn', '전체 선택', []);
+  tmp += m_button('all_check_off_btn', '전체 해제', []);
+  
+  str += tmp
+  // program
+  str += m_hr_black();
+  str += m_row_start(0);
+  tmp = ''
+  if (data.imageL != null) 
+    tmp = '<img src="' + data.info.imageL + '" class="img-fluid">';
+  str += m_col(3, tmp)
+  tmp = ''
+  tmp += m_row_start(2) + m_col(3, '제목', 'right') + m_col(9, data.info.title) + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '원제', 'right') + m_col(9, data.info.otitle) + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '나라', 'right') + m_col(9, data.info.country) + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '감독', 'right') + m_col(9, data.info.director) + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '제작사', 'right') + m_col(9, data.info.production) + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '장르', 'right') + m_col(9, data.info.genreName) + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '방영일', 'right') + m_col(9, data.info.makeYear) + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '등급', 'right') + m_col(9, data.info.restrictionCode) + m_row_end();
+  tmp += m_row_start(2) + m_col(3, '줄거리', 'right') + m_col(9, data.info.synopsis) + m_row_end();
+  if (data.info.opening != '' && data.info.ending != '' && data.info.pv != '') {
+    tmp2 = ''
+    if (data.info.opening != '') tmp2 += '<a href="' + data.info.opening + '" target="_blank"> 오프닝 </a>';
+    if (data.info.ending != '') tmp2 += '<a href="' + data.info.ending + '" target="_blank"> 엔딩 </a>';
+    if (data.info.pv != '') tmp2 += '<a href="' + data.info.pv + '" target="_blank"> 예고 </a>';
+    tmp += m_row_start(2) + m_col(3, '영상', 'right') + m_col(9, tmp2) + m_row_end();
+  }
+  
+  str += m_col(9, tmp)
+  str += m_row_end();
+  str += m_hr_black();
+
+  for (i in data.episode) {
+    str += m_row_start(); tmp = '';
+    if (data.episode[i].img)
+      tmp = '<img src="' + data.episode[i].img + '" class="img-fluid">'
+    str += m_col(3, tmp)
+    tmp = '<strong>' + data.episode[i].subTitle+ '</strong>';
+    tmp += '<br>';
+    tmp += '방영일 : ' + data.episode[i].updateDate.substring(0, 10) + '<br><br>';
+    tmp += data.episode[i].contentEpisode + '<br><br>';
+    
+    tmp += '<div class="form-inline">'
+    tmp += '<input id="checkbox_'+i+'" name="checkbox_'+i+'" type="checkbox" checked data-toggle="toggle" data-on="선 택" data-off="-" data-onstyle="success" data-offstyle="danger" data-size="small">&nbsp;&nbsp;&nbsp;&nbsp;'
+    tmp += m_button('add_queue_btn', '다운로드 추가', [{'key':'idx', 'value':i}])
+    tmp += '</div>'
+    str += m_col(9, tmp)
+    str += m_row_end();
+    if (i != data.length -1) str += m_hr(0);
+  }
+  document.getElementById("episode_list").innerHTML = str;
+  $('input[id^="checkbox_"]').bootstrapToggle()
+}
+
+$("body").on('click', '#all_check_on_btn', function(e){
+  e.preventDefault();
+  $('input[id^="checkbox_"]').bootstrapToggle('on')
+});
+
+$("body").on('click', '#all_check_off_btn', function(e){
+  e.preventDefault();
+  $('input[id^="checkbox_"]').bootstrapToggle('off')
+});
+
+$("body").on('click', '#add_queue_btn', function(e){
+  e.preventDefault();
+  data = current_data.episode[$(this).data('idx')];
+  $.ajax({
+    url: '/' + package_name + '/ajax/' + sub + '/add_queue',
+    type: "POST", 
+    cache: false,
+    data: {data:JSON.stringify(data)},
+    dataType: "json",
+    success: function (data) {
+      if (data.ret == 'enqueue_db_append' || data.ret == 'enqueue_db_exist') {
+        $.notify('<strong>다운로드 작업을 추가 하였습니다.</strong>', {type: 'success'});
+      } else if (data.ret == 'queue_exist') {
+        $.notify('<strong>이미 큐에 있습니다. 삭제 후 추가하세요.</strong>', {type: 'warning'});
+      } else if (data.ret == 'db_completed') {
+        $.notify('<strong>DB에 완료 기록이 있습니다.</strong>', {type: 'warning'});
+      } else {
+        $.notify('<strong>추가 실패</strong><br>' + ret.log, {type: 'warning'});
+      }
+    }
+  });
+});
+
+$("body").on('click', '#check_download_btn', function(e){
+  e.preventDefault();
+  all = $('input[id^="checkbox_"]');
+  data = [];
+  for (i in all) {
+    if (all[i].checked) {
+      idx = parseInt(all[i].id.split('_')[1])
+      data.push(current_data.episode[idx]);
+    }
+  }
+  if (data.length == 0) {
+    $.notify('<strong>선택하세요.</strong>', {type: 'warning'});
+    return;
+  }
+  $.ajax({
+    url: '/' + package_name + '/ajax/' + sub + '/add_queue_checked_list',
+    type: "POST", 
+    cache: false,
+    data: {data:JSON.stringify(data)},
+    dataType: "json",
+    success: function (data) {
+      $.notify('<strong>백그라운드로 작업을 추가합니다.</strong>', {type: 'success'});
+    }
+  });
+});
+
+$("body").on('click', '#go_aniplus_btn', function(e){
+  e.preventDefault();
+  window.open("https://www.aniplustv.com/", "_blank");
+});
+
+</script>
+{% endblock %}

@@ -17,23 +17,26 @@ class P(object):
     menu = {
         'main' : [package_name, u'비디오 다운로드'],
         'sub' : [
-            ['ani365', u'ani365'], ['log', u'로그']
+            ['ani365', u'ani365'], ['aniplus', u'ANIPLUS'], ['log', u'로그']
         ], 
         'category' : 'vod',
         'sub2' : {
             'ani365' : [
                 ['setting', u'설정'], ['request', u'요청'], ['queue', u'큐'], ['list', u'목록']
             ],
+            'aniplus' : [
+                ['setting', u'설정'], ['request', u'요청'], ['queue', u'큐'], ['list', u'목록']
+            ],
         }
     }  
     plugin_info = {
         'version' : '0.2.0.0',
-        'name' : 'downloader_ani',
+        'name' : 'downloader_video',
         'category_name' : 'vod',
         'icon' : '',
         'developer' : 'soju6jan',
         'description' : u'비디오 다운로드',
-        'home' : 'https://github.com/soju6jan/downloader_ani',
+        'home' : 'https://github.com/soju6jan/downloader_video',
         'more' : '',
     }
     ModelSetting = get_model_setting(package_name, logger)
@@ -48,7 +51,8 @@ def initialize():
         from framework.util import Util
         Util.save_from_dict_to_json(P.plugin_info, os.path.join(os.path.dirname(__file__), 'info.json'))
         from .logic_ani365 import LogicAni365
-        P.module_list = [LogicAni365(P)]
+        from .logic_aniplus import LogicAniplus
+        P.module_list = [LogicAni365(P), LogicAniplus(P)]
         P.logic = Logic(P)
         default_route(P)
     except Exception as e: 
