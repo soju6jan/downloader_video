@@ -172,6 +172,7 @@ class LogicAniplus(LogicModuleBase):
                     self.queue.add_queue(entity)
                     return 'enqueue_db_append'
                 else:
+                    self.queue.command('remove', entity.entity_id)
                     return 'fail'
             elif db_entity.status != 'completed':
                 entity = AniplusQueueEntity(P, self, episode_info)
@@ -192,7 +193,6 @@ class LogicAniplus(LogicModuleBase):
             tmp = requests.get('https://api.aniplustv.com:3100/itemPart?contentSerial={code}&userid={id}'.format(code=code, id=ModelSetting.get('aniplus_id')), headers=headers).json()
             if tmp[0]['intReturn'] == 0:
                 data['episode'] = tmp[0]['listData']
-                logger.debug(P.ModelSetting.get_bool('aniplus_order_desc'))
                 if P.ModelSetting.get_bool('aniplus_order_recent') == False:
                     data['episode'] = list(reversed(data['episode']))
             data['recent'] = ModelSetting.get_bool('aniplus_order_recent')
@@ -260,9 +260,9 @@ class AniplusQueueEntity(FfmpegQueueEntity):
                 content_title = self.info['title']
                 self.season = 1
             if content_title.find(u'극장판') != -1:
-                ret = '%s.%s-SA+.mp4' % (content_title, self.quality)
+                ret = '%s.%s-SAP.mp4' % (content_title, self.quality)
             else:
-                ret = '%s.S%sE%s.%s-SA+.mp4' % (content_title, str(self.season).zfill(2), str(self.info['part']).zfill(2), self.quality)
+                ret = '%s.S%sE%s.%s-SAP.mp4' % (content_title, str(self.season).zfill(2), str(self.info['part']).zfill(2), self.quality)
             self.filename = Util.change_text_for_use_filename(ret)
             self.savepath = P.ModelSetting.get('aniplus_download_path')
             if P.ModelSetting.get_bool('aniplus_auto_make_folder'):
