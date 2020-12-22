@@ -37,7 +37,7 @@ class LogicAniplus(LogicModuleBase):
         'aniplus_search_keyword' : '',
         'aniplus_id' : '',
         'aniplus_auto_start' : 'False',
-        'aniplus_interval' : '* 5 * * *',
+        'aniplus_interval' : '30 7 * * *',
         'aniplus_auto_make_folder' : 'True',
         'aniplus_order_recent' : 'True',
         'aniplus_incompleted_auto_enqueue' : 'True',
