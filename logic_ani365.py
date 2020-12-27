@@ -234,7 +234,7 @@ class Ani365QueueEntity(FfmpegQueueEntity):
                 #        self.url = tmp.replace('master.m3u8', t.strip())
                 #        self.quality = t.split('.m3u8')[0]
 
-                m3u8_text = requests.get(tmp, headers=headers).text
+                m3u8_text = requests.get(tmp, headers=headers).text.strip()
                 self.url = m3u8_text.split('\n')[-1].strip()
                 logger.debug(self.url)
                 self.quality = self.url.split('/')[-1].split('.')[0]
