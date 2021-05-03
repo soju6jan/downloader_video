@@ -269,7 +269,7 @@ class Ani365QueueEntity(FfmpegQueueEntity):
             #https://www.jetcloud-list.cc/getfiles/4yekl4kluyjldcefts7wuNtfQ7tRhoqyywN08Qb1bbg5ja32gv/1080/9cfea65b412beb6d02cda008326ec9d2/1080.m3u8
             #https://www.jetcloud-list.cc/getfiles/uwcngQuksgs5fka9qe2eg7tPdkhNejchht6xija5dcqtafthjj/1080/9cfea65b412beb6d02cda008326ec9d2/1080.m3u8
 
-            match = re.compile('src\=\"(?P<vtt_url>http.*?\kr.vtt)').search(text)
+            match = re.compile(r'src\=\"(?P<vtt_url>http.*?\kr.vtt)').search(text)
             if match:
                 self.vtt = u'%s' % match.group('vtt_url')
             match = re.compile(r'(?P<title>.*?)\s*((?P<season>\d+)%s)?\s*((?P<epi_no>\d+)%s)' % (u'기', u'화')).search(self.info['title'])
