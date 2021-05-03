@@ -50,14 +50,7 @@ class LogicAniplus(LogicModuleBase):
         super(LogicAniplus, self).__init__(P, 'setting', scheduler_desc='Aniplus 자동 다운로드')
         self.name = 'aniplus'
         default_route_socketio(P, self)
-        self.queue = None
-        self.current_data = None
 
-    def plugin_load(self):
-        # 2021-05-02 db에 아무것도 없을때 init전에 None 세팅
-        self.queue = FfmpegQueue(P, P.ModelSetting.get_int('aniplus_max_ffmpeg_process_count'))
-        self.current_data = None
-        self.queue.queue_start()
 
     def process_menu(self, sub, req):
         arg = P.ModelSetting.to_dict()
@@ -148,6 +141,10 @@ class LogicAniplus(LogicModuleBase):
                     self.socketio_callback('list_refresh', '')
 
     def plugin_load(self):
+        # 2021-05-02 db에 아무것도 없을때 init전에 None 세팅
+        self.queue = FfmpegQueue(P, P.ModelSetting.get_int('aniplus_max_ffmpeg_process_count'))
+        self.current_data = None
+        self.queue.queue_start()
         if P.ModelSetting.get_bool('aniplus_incompleted_auto_enqueue'):
             def func():
                 data = ModelAniplusItem.get_list_incompleted()
