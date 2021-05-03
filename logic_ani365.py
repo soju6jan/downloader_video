@@ -46,6 +46,8 @@ class LogicAni365(LogicModuleBase):
         super(LogicAni365, self).__init__(P, 'setting', scheduler_desc='ani365 자동 다운로드')
         self.name = 'ani365'
         default_route_socketio(P, self)
+        self.queue = None
+        self.current_data = None
 
     def plugin_load(self):
         # 2021-05-02 db에 아무것도 없을때 init전에 None 세팅
