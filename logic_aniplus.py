@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #########################################################
 # python
-import os, sys, traceback, re, json, threading
+import os, sys, traceback, re, json, threading, base64
 from datetime import datetime, timedelta
 import copy
 # third-party
@@ -70,7 +70,7 @@ class LogicAniplus(LogicModuleBase):
             if sub == 'search':
                 keyword = request.form['keyword']
                 P.ModelSetting.set('aniplus_search_keyword', keyword)
-                data = requests.post('https://api.aniplustv.com:3100/search', headers=headers, data=json.dumps({"params":{"userid":ModelSetting.get('aniplus_id'),"strFind":keyword,"gotoPage":1}})).json()
+                data = requests.post('https://api.aniplustv.com:3100/search', headers=headers, data=json.dumps({"params":{"userid":ModelSetting.get('aniplus_id'),"strFind":keyword,"gotoPage":1, 'token':get_token()}})).json()
                 return jsonify({'ret':'success', 'data':data})
             elif sub == 'analysis':
                 code = request.form['code']
@@ -117,7 +117,7 @@ class LogicAniplus(LogicModuleBase):
     
     def scheduler_function(self):
         date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        data = requests.post('https://api.aniplustv.com:3100/updateWeek', headers=headers, data=json.dumps({"params":{"userid":ModelSetting.get('aniplus_id'),"curDate":date}})).json()[0]['listData']
+        data = requests.post('https://api.aniplustv.com:3100/updateWeek', headers=headers, data=json.dumps({"params":{"userid":ModelSetting.get('aniplus_id'),"curDate":date, 'token':get_token()}})).json()[0]['listData']
         data = list(reversed(data))
         conent_code_list = P.ModelSetting.get_list('aniplus_auto_code_list', '|')
         for item in data:
@@ -232,13 +232,18 @@ class AniplusQueueEntity(FfmpegQueueEntity):
 
     def make_episode_info(self):
         try:
-            data = requests.get('https://www.aniplustv.com/aniplus2020Api/base64encode.asp?codeString={time}|aniplus|{subPartSerial2}/{userid}'.format(
+            data = requests.get('https://www.aniplustv.com/aniplus2020Api/base64encode.asp?codeString={userid}'.format(userid=ModelSetting.get('aniplus_id')), headers=headers).text
+            userid2 = data.replace('{"codeString":"', '').replace('"}', '')
+            data = requests.get('https://www.aniplustv.com/aniplus2020Api/base64encode.asp?codeString={time}|was|{subPartSerial2}/{userid}@{userid2}'.format(
                 time=(datetime.now() + timedelta(hours=1)).strftime('%Y%m%d%H%M%S'),
                 subPartSerial2=self.info['subPartSerial2'],
-                userid=ModelSetting.get('aniplus_id'),
+                userid=ModelSetting.get('aniplus_id'), userid2=userid2
             ), headers=headers).text
-            data = data.replace('{"codeString":"', '').replace('"}', '')
-            data = requests.post('https://api.aniplustv.com:3100/vodUrl', headers=headers, data=json.dumps({"params":{"userid":ModelSetting.get('aniplus_id'),"subPartSerial":self.info['subPartSerial2'],"crypParam":data}})).json()[0]
+            crypParam = data.replace('{"codeString":"', '').replace('"}', '')
+            data = requests.post('https://api.aniplustv.com:3100/vodUrl', 
+                headers=headers, 
+                json={"params":{"userid":ModelSetting.get('aniplus_id'),"subPartSerial":self.info['subPartSerial2'],"crypParam":crypParam, 'authId': base64.b64encode(ModelSetting.get('aniplus_id')), 'token': get_token()}}
+            ).json()[0]
             if 'use1080' in data and data['use1080'] != '':
                 self.quality = '1080p'
                 self.url = data['use1080']
@@ -404,3 +409,5 @@ class ModelAniplusItem(db.Model):
         item.save()
 
 
+def get_token():
+    return base64.b64encode(datetime.now().strftime('%Y%m%d%H%M%S'))

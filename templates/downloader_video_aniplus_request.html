@@ -4,7 +4,7 @@
 <div>
   <form id='program_list'>
     {{ macros.setting_input_text_and_buttons('aniplus_search_keyword', '작품 검색', [['search_btn', '검색']], value=arg['aniplus_search_keyword'], desc=['검색어. contentSerial 값이 아래 작품 Code']) }}
-    {{ macros.setting_input_text_and_buttons('code', '작품 Code', [['analysis_btn', '분석'], ['go_aniplus_btn', 'Go aniplus']], desc='예) https://www.aniplus.me/kr/detail/Demon-Slayer 이나 Demon-Slaye') }}
+    {{ macros.setting_input_text_and_buttons('code', '작품 Code', [['analysis_btn', '분석'], ['go_aniplus_btn', 'Go aniplus']], desc=None) }}
   </form>
   <form id="program_auto_form">
   <div id='episode_list'></div>
