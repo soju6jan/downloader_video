@@ -84,7 +84,7 @@ class LogicAniplus(LogicModuleBase):
                 ret['ret'] = self.add(info)
                 return jsonify(ret)
             elif sub == 'entity_list':
-                return jsonify(AniplusQueueEntity.get_entity_list())
+                return jsonify(self.queue.get_entity_list())
             elif sub == 'queue_command':
                 ret = self.queue.command(req.form['command'], int(req.form['entity_id']))
                 return jsonify(ret)
@@ -163,7 +163,7 @@ class LogicAniplus(LogicModuleBase):
 
     #########################################################
     def add(self, episode_info):
-        if AniplusQueueEntity.is_exist(episode_info):
+        if self.is_exist(episode_info):
             return 'queue_exist'
         else:
             db_entity = ModelAniplusItem.get_by_aniplus_id(episode_info['contentPartSerial'])
@@ -204,6 +204,11 @@ class LogicAniplus(LogicModuleBase):
             P.logger.error(traceback.format_exc())
             return {'ret':'exception', 'log':str(e)}
 
+    def is_exist(self, info):
+        for e in self.queue.entity_list:
+            if e.info['contentPartSerial'] == info['contentPartSerial']:
+                return True
+        return False
 
 
 
@@ -283,12 +288,7 @@ class AniplusQueueEntity(FfmpegQueueEntity):
             P.logger.error('Exception:%s', e)
             P.logger.error(traceback.format_exc())
 
-    @classmethod
-    def is_exist(cls, info):
-        for e in cls.entity_list:
-            if e.info['contentPartSerial'] == info['contentPartSerial']:
-                return True
-        return False
+
 
 
 class ModelAniplusItem(db.Model):

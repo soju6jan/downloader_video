@@ -74,7 +74,7 @@ class LogicAni365(LogicModuleBase):
                 ret['ret'] = self.add(info)
                 return jsonify(ret)
             elif sub == 'entity_list':
-                return jsonify(Ani365QueueEntity.get_entity_list())
+                return jsonify(self.queue.get_entity_list())
             elif sub == 'queue_command':
                 ret = self.queue.command(req.form['command'], int(req.form['entity_id']))
                 return jsonify(ret)
@@ -136,6 +136,11 @@ class LogicAni365(LogicModuleBase):
         self.queue.queue_start()
         if P.ModelSetting.get_bool('ani365_incompleted_auto_enqueue'):
             def func():
+                referer = P.ModelSetting.get('ani365_url') + '/kr'
+                url = P.ModelSetting.get('ani365_url') + '/get-series'
+                param = {'_ut' : '', 'dateft':''}
+                data, LogicAni365.current_headers = get_json_with_auth_session(referer, url, param)
+
                 data = ModelAni365Item.get_list_incompleted()
                 for db_entity in data:
                     add_ret = self.add(db_entity.ani365_info)
@@ -152,7 +157,7 @@ class LogicAni365(LogicModuleBase):
 
     #########################################################
     def add(self, episode_info):
-        if Ani365QueueEntity.is_exist(episode_info):
+        if self.is_exist(episode_info):
             return 'queue_exist'
         else:
             db_entity = ModelAni365Item.get_by_ani365_id(episode_info['_id'])
@@ -194,6 +199,14 @@ class LogicAni365(LogicModuleBase):
             P.logger.error(traceback.format_exc())
             return {'ret':'exception', 'log':str(e)}
 
+    
+    def is_exist(self, info):
+        for e in self.queue.entity_list:
+            if e.info['_id'] == info['_id']:
+                return True
+        return False
+
+
 
 class Ani365QueueEntity(FfmpegQueueEntity):
     def __init__(self, P, module_logic, info):
@@ -230,42 +243,10 @@ class Ani365QueueEntity(FfmpegQueueEntity):
             match = re.compile('src\=\"(?P<video_url>http.*?\.m3u8)').search(text)
             if match:
                 tmp = match.group('video_url')
-                # 2020-11-06 master.m3u8 cloudflare가 막음. 화질별은 아직 안막음.
-                #m3u8 = requests.get(tmp, headers=LogicAni365.current_headers).text
-                #for t in m3u8.split('\n'):
-                #    if t.find('m3u8') != -1:
-                #        self.url = tmp.replace('master.m3u8', t.strip())
-                #        self.quality = t.split('.m3u8')[0]
-
                 m3u8_text = requests.get(tmp, headers=headers).text.strip()
                 self.url = m3u8_text.split('\n')[-1].strip()
                 logger.debug(self.url)
                 self.quality = self.url.split('/')[-1].split('.')[0]
-
-                """
-                logger.debug(tmp)
-                master = tmp.replace('https://', '').split('/')
-                logger.debug(master)
-                master[1] += 's'
-                url_1080 = copy.deepcopy(master)
-                url_1080.insert(3, '1080')
-                url_1080[-1] = url_1080[-1].replace('master', '1080')
-                tmp = 'https://' + '/'.join(url_1080)
-                res = requests.get(tmp, headers=LogicAni365.current_headers)
-                if res.status_code == 200:
-                    self.url = tmp
-                    self.quality = '1080'
-                else:
-                    url_720 = copy.deepcopy(master)
-                    url_720.insert(3, '720')
-                    url_720[-1] = url_1080[-1].replace('master', '720')
-                    self.url = 'https://' + '/'.join(url_720)
-                    self.quality = '720'
-                """
-                
-
-            #https://www.jetcloud-list.cc/getfiles/4yekl4kluyjldcefts7wuNtfQ7tRhoqyywN08Qb1bbg5ja32gv/1080/9cfea65b412beb6d02cda008326ec9d2/1080.m3u8
-            #https://www.jetcloud-list.cc/getfiles/uwcngQuksgs5fka9qe2eg7tPdkhNejchht6xija5dcqtafthjj/1080/9cfea65b412beb6d02cda008326ec9d2/1080.m3u8
 
             match = re.compile(r'src\=\"(?P<vtt_url>http.*?kr.vtt)').search(text)
             if match:
@@ -306,12 +287,6 @@ class Ani365QueueEntity(FfmpegQueueEntity):
             P.logger.error('Exception:%s', e)
             P.logger.error(traceback.format_exc())
 
-    @classmethod
-    def is_exist(cls, info):
-        for e in cls.entity_list:
-            if e.info['_id'] == info['_id']:
-                return True
-        return False
 
 
 class ModelAni365Item(db.Model):
