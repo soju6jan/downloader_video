@@ -242,7 +242,7 @@ class AniplusQueueEntity(FfmpegQueueEntity):
             crypParam = data.replace('{"codeString":"', '').replace('"}', '')
             data = requests.post('https://api.aniplustv.com:3100/vodUrl', 
                 headers=headers, 
-                json={"params":{"userid":ModelSetting.get('aniplus_id'),"subPartSerial":self.info['subPartSerial2'],"crypParam":crypParam, 'authId': base64.b64encode(ModelSetting.get('aniplus_id')).decode('utf-8'), 'token': get_token()}}
+                json={"params":{"userid":ModelSetting.get('aniplus_id'),"subPartSerial":self.info['subPartSerial2'],"crypParam":crypParam, 'authId': base64.b64encode(ModelSetting.get('aniplus_id').encode('utf-8')), 'token': get_token()}}
             ).json()[0]
             if 'use1080' in data and data['use1080'] != '':
                 self.quality = '1080p'
@@ -410,4 +410,4 @@ class ModelAniplusItem(db.Model):
 
 
 def get_token():
-    return base64.b64encode(datetime.now().strftime('%Y%m%d%H%M%S')).decode('utf-8')
+    return base64.b64encode(datetime.now().strftime('%Y%m%d%H%M%S').encode('utf-8'))
