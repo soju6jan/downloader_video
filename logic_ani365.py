@@ -116,6 +116,8 @@ class LogicAni365(LogicModuleBase):
                 for content in day if type(day) == type([]) else day.values():
                     if content['_s'] in conent_code_list or 'all' in conent_code_list:
                         content_info = self.get_series_info(content['_s'])
+                        if len(content_info['episode']) == 0:
+                            continue
                         if P.ModelSetting.get_bool('ani365_auto_mode_all'):
                             for episode_info in content_info['episode']:
                                 add_ret = self.add(episode_info)
