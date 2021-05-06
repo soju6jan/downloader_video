@@ -410,4 +410,4 @@ class ModelAniplusItem(db.Model):
 
 
 def get_token():
-    return base64.b64encode(datetime.now().strftime('%Y%m%d%H%M%S').encode('utf-8')).decode('ute-8')
+    return base64.b64encode(datetime.now().strftime('%Y%m%d%H%M%S').encode('utf-8')).decode('utf-8')
