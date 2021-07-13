@@ -278,7 +278,9 @@ class Ani365QueueEntity(FfmpegQueueEntity):
                 os.makedirs(self.savepath)
             from framework.common.util import write_file, convert_vtt_to_srt
             srt_filepath = os.path.join(self.savepath, self.filename.replace('.mp4', '.ko.srt'))
-            if not os.path.exists(srt_filepath):
+            # 2021-07-13 by lapis
+            #if not os.path.exists(srt_filepath):
+            if self.vtt is not None and not os.path.exists(srt_filepath):
                 vtt_data = requests.get(self.vtt, headers=LogicAni365.current_headers).text
                 srt_data = convert_vtt_to_srt(vtt_data)
                 write_file(srt_data, srt_filepath)
