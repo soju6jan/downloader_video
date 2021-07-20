@@ -1,1 +1,10 @@
-{"more": "", "version": "0.2.0.0", "name": "downloader_video", "developer": "soju6jan", "home": "https://github.com/soju6jan/downloader_video", "description": "\ube44\ub514\uc624 \ub2e4\uc6b4\ub85c\ub4dc", "icon": "", "category_name": "vod"}
+{
+    "version": "0.2.0.0",
+    "name": "downloader_video",
+    "category_name": "vod",
+    "icon": "",
+    "developer": "soju6jan",
+    "description": "비디오 다운로드",
+    "home": "https://github.com/soju6jan/downloader_video",
+    "more": ""
+}

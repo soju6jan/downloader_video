@@ -12,8 +12,9 @@ from sqlalchemy import or_, and_, func, not_, desc
 # sjva 공용
 from framework import db, scheduler, path_data, socketio
 from framework.util import Util
-from framework.common.util import headers, get_json_with_auth_session
+from framework.common.util import headers
 from framework.common.plugin import LogicModuleBase, FfmpegQueueEntity, FfmpegQueue, default_route_socketio
+from tool_base import d
 # 패키지
 from .plugin import P
 logger = P.logger
@@ -106,10 +107,9 @@ class LogicAni365(LogicModuleBase):
             self.queue.set_max_ffmpeg_count(P.ModelSetting.get_int('ani365_max_ffmpeg_process_count'))
     
     def scheduler_function(self):
-        referer = P.ModelSetting.get('ani365_url') + '/kr'
         url = P.ModelSetting.get('ani365_url') + '/get-series'
         param = {'_ut' : '', 'dateft':''}
-        data, LogicAni365.current_headers = get_json_with_auth_session(referer, url, param)
+        data, LogicAni365.current_headers = self.get_json_with_auth_session(None, url, param)
         conent_code_list = P.ModelSetting.get_list('ani365_auto_code_list', '|')
         for k1, day in data.items():
             if int(k1) < 8:
@@ -136,10 +136,9 @@ class LogicAni365(LogicModuleBase):
         self.queue.queue_start()
         if P.ModelSetting.get_bool('ani365_incompleted_auto_enqueue'):
             def func():
-                referer = P.ModelSetting.get('ani365_url') + '/kr'
                 url = P.ModelSetting.get('ani365_url') + '/get-series'
                 param = {'_ut' : '', 'dateft':''}
-                data, LogicAni365.current_headers = get_json_with_auth_session(referer, url, param)
+                data, LogicAni365.current_headers = self.get_json_with_auth_session(None, url, param)
 
                 data = ModelAni365Item.get_list_incompleted()
                 for db_entity in data:
@@ -182,7 +181,7 @@ class LogicAni365(LogicModuleBase):
             referer = P.ModelSetting.get('ani365_url') + '/kr/detail/' + code
             url = P.ModelSetting.get('ani365_url') + '/get-series-detail'
             param = {'_si' : code, '_sea':''}
-            data, LogicAni365.current_headers = get_json_with_auth_session(referer, url, param)
+            data, LogicAni365.current_headers = self.get_json_with_auth_session(referer, url, param)
             if data is None:
                 return
             data['code'] = code
@@ -205,6 +204,37 @@ class LogicAni365(LogicModuleBase):
             if e.info['_id'] == info['_id']:
                 return True
         return False
+
+    # /kr 만 set-cookie를 보냄
+    # 무조건 쿠키확보 후 referer None이면 바로 url로, None이 아니면 referer 거쳐서
+    def get_json_with_auth_session(self, referer, url, data):
+        try:
+            headers = {
+                #'Accept' : 'application/json, text/plain, */*',
+                #'Accept-Language':'ko-KR,ko;q=0.8,en-US;q=0.5,en;q=0.3',
+                #'Connection':'keep-alive',
+                #'Content-Type':'application/x-www-form-urlencoded;charset=utf-8;',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.105 Safari/537.36',
+            }
+            session = requests.Session()
+            home = P.ModelSetting.get('ani365_url') + '/kr'
+            res = session.get(home)
+
+            headers['Authorization'] = res.text.split('$http.defaults.headers.common[\'Authorization\'] = "')[1].strip().split('"')[0]
+            headers['Cookie'] = f"ci_session={res.headers['Set-Cookie'].split('ci_session=')[1].split(';')[0]}; USERCONTRY=kr; LANGU=kr;"
+            #logger.warning(d(headers))
+            if referer is not None:
+                res = session.get(referer)
+
+            res = session.post(url, headers=headers, data=data)
+            #logger.warning(res.text)
+            logger.debug('get_json_with_auth_session status_code : %s', res.status_code)
+            return res.json(), headers
+        except Exception as exception: 
+            logger.error('Exception:%s', exception)
+            logger.error(traceback.format_exc())
+            return None, None
+
 
 
 
@@ -413,3 +443,6 @@ class ModelAni365Item(db.Model):
         item.status = 'wait'
         item.ani365_info = q['ani365_info']
         item.save()
+
+
+
