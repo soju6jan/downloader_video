@@ -13,7 +13,7 @@ from sqlalchemy import or_, and_, func, not_, desc
 from framework import db, scheduler, path_data, socketio
 from framework.util import Util
 from framework.common.util import headers
-from framework.common.plugin import LogicModuleBase, FfmpegQueueEntity, FfmpegQueue, default_route_socketio
+from plugin import LogicModuleBase, FfmpegQueueEntity, FfmpegQueue, default_route_socketio
 from tool_base import d
 # 패키지
 from .plugin import P
