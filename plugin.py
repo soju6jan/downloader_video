@@ -17,7 +17,7 @@ class P(object):
     menu = {
         'main' : [package_name, u'비디오 다운로드'],
         'sub' : [
-            ['ani365', u'ani365'], ['aniplus', u'ANIPLUS'], ['log', u'로그']
+            ['ani365', u'ani365'], ['aniplus', u'ANIPLUS'], ['twitch', u'twitch.tv'], ['log', u'로그']
         ], 
         'category' : 'vod',
         'sub2' : {
@@ -27,10 +27,13 @@ class P(object):
             'aniplus' : [
                 ['setting', u'설정'], ['request', u'요청'], ['queue', u'큐'], ['list', u'목록']
             ],
+            'twitch' : [
+                ['setting', u'설정'], ['queue', u'큐'], ['list', u'목록']
+            ]
         }
     }  
     plugin_info = {
-        'version' : '0.2.0.0',
+        'version' : '0.2.1.0',
         'name' : 'downloader_video',
         'category_name' : 'vod',
         'icon' : '',
@@ -51,7 +54,8 @@ def initialize():
         PluginUtil.make_info_json(P.plugin_info, __file__)
         from .logic_ani365 import LogicAni365
         from .logic_aniplus import LogicAniplus
-        P.module_list = [LogicAni365(P), LogicAniplus(P)]
+        from .logic_twitch import LogicTwitch
+        P.module_list = [LogicAni365(P), LogicAniplus(P), LogicTwitch(P)]
         P.logic = Logic(P)
         default_route(P)
     except Exception as e: 
