@@ -23,11 +23,6 @@ ModelSetting = P.ModelSetting
 #########################################################
 # utils
 #########################################################
-def url_from_id(id):
-  if not id.startswith('http'):
-    id = 'https://twitch.tv/' + id
-  return id
-
 
 
 #########################################################
@@ -37,17 +32,34 @@ class LogicTwitch(LogicModuleBase):
   db_default = {
     'twitch_db_version': '1',
     'twitch_download_path': os.path.join(path_data, P.package_name, 'twitch'),
-    'twitch_filename_format': '%Y%m%d.%H%M [{category}] {title}',
-    'twitch_directory_name_format': '{author} ({id})/{%Y%m}',
+    'twitch_filename_format': '[%Y%m%d][%H%M] [{category}] {title}',
+    'twitch_directory_name_format': '{author} ({id})/%Y-%m',
     'twitch_streamer_ids': '',
     'twitch_auto_make_folder': 'True',
     'twitch_auto_start': 'False',
     'twitch_interval': '* * * * *',
     'streamlink_quality': 'best',
-    'streamlink_options': '',
+    'streamlink_options': '--force-progress\n--twitch-disable-hosting\n--twitch-disable-ads\n--twitch-disable-reruns\n',
   }
-  is_running = {}
+  twitch_prefix = 'https://www.twitch.tv/'
+  is_streamlink_installed = False
+  streamlink_plugins = {}
+  '''
+  'streamer_id': <Streamlink.plugin>
+  '''
+  streamlink_infos = {} 
+  '''
+  'streamer_id': {
+    online: bool,
+    author: str,
+    title: str,
+    category: str,
+  } 
+  '''
   children_processes = {}
+  '''
+  'streamer_id': <subprocess.Popen> 
+  '''
   streamlink_session = None
   
 
@@ -59,12 +71,12 @@ class LogicTwitch(LogicModuleBase):
   def process_menu(self, sub, req):
     arg = P.ModelSetting.to_dict()
     arg['sub'] = self.name
-    if sub in ['setting', 'queue', 'list']:
+    if sub in ['setting', 'status', 'list']:
       if sub == 'setting':
         job_id = f'{self.P.package_name}_{self.name}'
         arg['scheduler'] = str(scheduler.is_include(job_id))
         arg['is_running'] = str(scheduler.is_running(job_id))
-        arg['is_streamlink_installed'] = 'Installed' if self.is_streamlink_installed() else 'Not installed'
+        arg['is_streamlink_installed'] = 'Installed' if self.is_streamlink_installed else 'Not installed'
       return render_template(f'{P.package_name}_{self.name}_{sub}.html', arg=arg)
     return render_template('sample.html', title=f'404: {P.package_name} - {sub}')
   
@@ -77,6 +89,11 @@ class LogicTwitch(LogicModuleBase):
         return jsonify({})
       elif sub == 'install':
         LogicTwitch.install_streamlink()
+        try:
+          import streamlink
+          self.is_streamlink_installed = True
+        except:
+          pass
         return jsonify({})
       elif sub == 'db_remove':
         return jsonify(ModelTwitchItem.delete_by_id(req.form['id']))
@@ -91,40 +108,57 @@ class LogicTwitch(LogicModuleBase):
 
 
   def scheduler_function(self):
+    # TODO: 이미 실행중이면 스킵하기
     try:
       if not self.streamlink_session:
+        import streamlink
         self.streamlink_session = streamlink.Streamlink() 
       
-      twitch_prefix = 'https://www.twitch.tv/'
-      filename_format = P.ModelSetting.get('twitch_filename_format')
-      stream_link_options = P.ModelSetting.get_list('streamlink_options', '|')
+      streamlink_quality = P.ModelSetting.get('streamlink_quality')
+      streamlink_options = P.ModelSetting.get_list('streamlink_options', '|')
       streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|') # | 또는 엔터
 
-      streamlink_plugin_list = {
-        streamer_id: self.streamlink_session.resolve_url(twitch_prefix + streamer_id) for streamer_id in streamer_ids
+      download_directory = P.ModelSetting.get('twitch_download_path')
+      make_child_directory = P.ModelSetting.get_bool('twitch_auto_make_folder')
+      child_directory_name_format = P.ModelSetting.get('twitch_directory_name_format')
+      filename_format = P.ModelSetting.get('twitch_filename_format')
+
+      self.streamlink_plugins = {
+        streamer_id: self.streamlink_session.resolve_url(self.twitch_prefix + streamer_id) for streamer_id in streamer_ids
       }
-      for streamer_id in streamlink_plugin_list:
-        self.is_running[streamer_id] = self.__is_online(streamlink_plugin_list[streamer_id])
-        if self.is_running[streamer_id]:
+      for streamer_id in self.streamlink_plugins:
+        self.__set_streamlink_info(streamer_id)
+        if self.streamlink_infos[streamer_id]['online']:
+          # set filename
+          download_path = os.path.abspath(download_directory)
+          if make_child_directory:
+            directory_name = self.__parse_title_string(streamer_id, child_directory_name_format)
+            download_path = os.path.join(download_path, directory_name)
+            if not os.path.isdir(download_path):
+              os.makedirs(download_path, exist_ok=True) # mkdir -p
+          filename = self.__parse_title_string(streamer_id, filename_format)
+          download_path = os.path.join(download_path, filename)
+          if not download_path.endswith('.mp4'):
+            download_path = download_path + '.mp4'
+          # spawn child
           self.__spawn_children(
             streamer_id, 
-            self.__parse_title_string(streamlink_plugin_list[streamer_id], filename_format),
-            stream_link_options
+            download_path,
+            quality=streamlink_quality,
+            options=streamlink_options
           )
-
-      # 방송중이고 현재 다운로드중이 아닌 것
-      # 다운로드가 끝나면 is_running을 False로 바꿔야함
     except Exception as e:
       logger.error(f'Exception: {e}')
       logger.error(traceback.format_exc())
 
 
   def plugin_load(self):
-    streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|') # | 또는 엔터
-    for streamer_id in streamer_ids:
-      self.is_running[streamer_id] = False
-      self.children_processes[streamer_id] = None
-
+    try:
+      import streamlink
+      self.is_streamlink_installed = True
+    except:
+      return False
+  
 
   def reset_db(self):
     db.session.query(ModelTwitchItem).delete()
@@ -158,55 +192,95 @@ class LogicTwitch(LogicModuleBase):
       logger.error('Exception:%s', e)
       logger.error(traceback.format_exc())
 
-  # imported from soju6jan/klive/logic_streamlink.py
-  @staticmethod
-  def is_streamlink_installed():
+  """
+  [cli][info] streamlink is running as root! Be careful!
+  [cli][info] Found matching plugin twitch for URL https://www.twitch.tv/jungtaejune
+  [cli][info] Available streams: audio_only, 160p (worst), 360p, 480p, 720p, 720p60, 1080p60 (best)
+  [cli][info] Opening stream: 1080p60 (hls)
+  [plugins.twitch][info] Will skip ad segments
+  [download][ddol_210905_1530.mp4] Written 23.68 GB (6h43m50s @ 1005.8 KB/s)  
+  """
+  def __spawn_children(self, streamer_id, filename, quality='best', options: list=[]):
     try:
-      import streamlink
-      return True
-    except Exception as e: 
-      pass
-    return False
+      def output_reader(proc, streamer_id):
+        for line in iter(proc.stdout.readline, b''):
+          print(f'[{streamer_id}]{line}', end='')
+          # print(f'[{streamer_id}]{line.decode("utf-8")}', end='')
+      # TODO: https://stackoverflow.com/a/636570
+      # 지금 output_reader에서는 현재 진행상황이 표시가 안되네 
+      # progress 표시하는게 버퍼에 쌓이지 않아서 그럼
+      # -> bufsize=0, universal_newlines=True으로 해결
+      command = ['python3', '-m', 'streamlink', '--output', filename]
+      command = command + options
+      command = command + [f'{self.twitch_prefix}{streamer_id}', quality]
+
+      from subprocess import Popen, PIPE, STDOUT
+      self.children_processes[streamer_id] = Popen(
+        command, 
+        stdout=PIPE, 
+        stderr=STDOUT,
+        universal_newlines=True,
+        bufsize=0,
+      )
+      t = threading.Thread(target=output_reader, args=(self.children_processes[streamer_id], streamer_id,))
+      t.setDaemon(True)
+      t.start()
+      return f'spwan success: {streamer_id}'
+    except Exception as e:
+      logger.error(f'Exception: {e}')
+      logger.error(traceback.format_exc())
+      return f'spawn failed: {streamer_id}'
 
 
-  def __spawn_children(self, streamer_id, filename, options: list=[]):
-    # TODO: https://stackoverflow.com/a/636570
-    from subprocess import Popen
-    self.children_processes[streamer_id] = Popen(['watch', 'echo', 'test-done'])
-    return 'enqueue'
+  def __set_streamlink_info(self, streamer_id):
+    info = {}
+    plugin = self.streamlink_plugins[streamer_id]
+    # TODO: 특수문자 이스케이프
+    author = plugin.get_author() or 'No Author'
+    title = plugin.get_title()
+    category = plugin.get_category() or 'No Category'
 
-  def __is_online(self, streamlink_plugin):
-    return len(streamlink_plugin.streams()) > 0
+    # 웹에서 띄어쓰기가 없거나 하나인데 여러개로 표시되는 문제
+    title = title.strip() if type(title) == type('') else 'No Title'
+    title = re.sub(r'(\s)+', r'\1', title)
+
+    # 파일명에 불가능한 문자. :, \, /, : * ? " < > |
+    replace_list = {
+      ':': '∶',
+      '/': '_',
+      '\\': '_',
+      '*': '⁎',
+      '?': '？',
+      '"': "'",
+      '<': '(',
+      '>': ')',
+      '|': '_',
+    }
+    for key in replace_list.keys():
+      author = author.replace(key, replace_list[key])
+      title = title.replace(key, replace_list[key])
+      category = category.replace(key, replace_list[key])
+    
+    info['online'] = len(plugin.streams()) > 0
+    info['author'] = author
+    info['title'] = title
+    info['category'] = category
+    self.streamlink_infos[streamer_id] = info
   
-  # TODO: {id} 항목 구현하기
-  def __parse_title_string(self, streamlink_plugin, format_str):
+
+  def __parse_title_string(self, streamer_id, format_str):
     '''
     keywords: {author}, {title}, {category}, {id}
-    and time foramt: {%m-%d-%Y %H:%M:%S}
+    and time foramt keywords: %m,%d,%Y, %H,%M,%S, ...
     https://docs.python.org/ko/3/library/datetime.html#strftime-and-strptime-format-codes
     '''
     result = format_str
-    result = result.replace('{author}', streamlink_plugin.get_author())
-    result = result.replace('{title}', streamlink_plugin.get_title())
-    result = result.replace('{category}', streamlink_plugin.get_category())
-
-    idx = 0
-    curly_brace_end = 0
-    while idx < len(result):
-      if result[idx] == '{':
-        curly_brace_end = idx
-        while curly_brace_end < len(result) and result[curly_brace_end] != '}':
-          curly_brace_end += 1
-        if result[curly_brace_end] != '}':
-          break
-        
-        time_format = result[idx:curly_brace_end]
-        time_string = datetime.datetime.now().strftime(time_format)
-        if time_format != time_string:
-          result = result[:idx] + time_string + result[curly_brace_end + 1:]
-          idx = idx + len(time_string)
-      else:
-        idx += 1  
+    result = result.replace('{id}', streamer_id)
+    result = result.replace('{author}', self.streamlink_infos[streamer_id]['author'])
+    result = result.replace('{title}', self.streamlink_infos[streamer_id]['title'])
+    result = result.replace('{category}', self.streamlink_infos[streamer_id]['category'])
+    result = datetime.now().strftime(result)
+    return result
 
 
 #########################################################

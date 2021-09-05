@@ -28,7 +28,7 @@ class P(object):
                 ['setting', u'설정'], ['request', u'요청'], ['queue', u'큐'], ['list', u'목록']
             ],
             'twitch' : [
-                ['setting', u'설정'], ['queue', u'큐'], ['list', u'목록']
+                ['setting', u'설정'], ['status', u'상태'], ['list', u'목록']
             ]
         }
     }  
