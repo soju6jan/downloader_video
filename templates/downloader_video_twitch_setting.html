@@ -84,8 +84,10 @@ $("body").on('click', '#streamlink_install_btn', function(e){
 function install_streamlink() {
   $.ajax({
     url: `/${package_name}/ajax/${sub}/install`,
-    type: "GET", 
+    type: "POST", 
     cache: false,
+    data: {},
+    dataType: "json",
     success: function (data) {
       command_modal_show('설치')
     }

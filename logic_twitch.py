@@ -47,18 +47,27 @@ class LogicTwitch(LogicModuleBase):
   '''
   'streamer_id': <Streamlink.plugin>
   '''
-  streamlink_infos = {} 
-  '''
-  'streamer_id': {
-    online: bool,
-    author: str,
-    title: str,
-    category: str,
-  } 
-  '''
-  children_processes = {}
+  streamlink_processes = {}
   '''
   'streamer_id': <subprocess.Popen> 
+  '''
+  streamlink_process_status = {}
+  '''
+  'streamer_id': {
+    'online': bool,
+    'author': str,
+    'title': str,
+    'category': str,
+    'started_timestamp': 0,
+    'quality': '',
+    'options': [],
+    'path': '',
+    'log': ['message1', 'message2',],
+    'status': 'status_string',
+    'size': '',
+    'elapsed_time': '',
+    'speed': '',
+  }
   '''
   streamlink_session = None
   
@@ -68,6 +77,7 @@ class LogicTwitch(LogicModuleBase):
     self.name = 'twitch'
     default_route_socketio(P, self)
   
+
   def process_menu(self, sub, req):
     arg = P.ModelSetting.to_dict()
     arg['sub'] = self.name
@@ -83,17 +93,13 @@ class LogicTwitch(LogicModuleBase):
 
   def process_ajax(self, sub, req):
     try:
-      if sub == 'entity_list': # 처음에 queue에서 요청. 로컬에서 항목 추가되면 list_refresh 소켓 보내기
-        return jsonify({})
+      if sub == 'entity_list': # 처음에 queue에서 요청.
+        return jsonify(self.streamlink_process_status)
       elif sub == 'web_list':
         return jsonify({})
       elif sub == 'install':
         LogicTwitch.install_streamlink()
-        try:
-          import streamlink
-          self.is_streamlink_installed = True
-        except:
-          pass
+        self.is_streamlink_installed = True
         return jsonify({})
       elif sub == 'db_remove':
         return jsonify(ModelTwitchItem.delete_by_id(req.form['id']))
@@ -103,12 +109,12 @@ class LogicTwitch(LogicModuleBase):
 
 
   def setting_save_after(self):
-    pass
-    # TODO: streamlink_session에 옵션 세팅하기
+    streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|') # | 또는 엔터
+    for streamer_id in streamer_ids:
+      self.__init_properties(streamer_id)
 
 
   def scheduler_function(self):
-    # TODO: 이미 실행중이면 스킵하기
     try:
       if not self.streamlink_session:
         import streamlink
@@ -127,8 +133,17 @@ class LogicTwitch(LogicModuleBase):
         streamer_id: self.streamlink_session.resolve_url(self.twitch_prefix + streamer_id) for streamer_id in streamer_ids
       }
       for streamer_id in self.streamlink_plugins:
+        # check if running
+        # 이거 set_info 뒤로 빼면 실시간으로 제목, 카테고리 갱신 될 것. 
+        # 근데 안할거임. 트위치에 부담될 것 같음.
+        # 그냥 실시간으로 다운 상황만 갱신할래
+        if self.streamlink_processes[streamer_id]:
+          continue
+        
+        self.__set_default_streamlink_process_status(streamer_id)
         self.__set_streamlink_info(streamer_id)
-        if self.streamlink_infos[streamer_id]['online']:
+
+        if self.streamlink_process_status[streamer_id]['online']:
           # set filename
           download_path = os.path.abspath(download_directory)
           if make_child_directory:
@@ -140,6 +155,12 @@ class LogicTwitch(LogicModuleBase):
           download_path = os.path.join(download_path, filename)
           if not download_path.endswith('.mp4'):
             download_path = download_path + '.mp4'
+          # set 
+          self.__set_streamlink_process_status(
+            streamer_id, 
+            ['path', 'started_timestamp', 'options', 'quality'], 
+            [download_path, int(datetime.now().strftime("%s%f"))/1000, streamlink_options, streamlink_quality]
+          )
           # spawn child
           self.__spawn_children(
             streamer_id, 
@@ -158,12 +179,17 @@ class LogicTwitch(LogicModuleBase):
       self.is_streamlink_installed = True
     except:
       return False
+    streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|')
+    for streamer_id in streamer_ids:
+      self.__init_properties(streamer_id)
+    
   
 
   def reset_db(self):
     db.session.query(ModelTwitchItem).delete()
     db.session.commit()
     return True
+
 
   #########################################################
 
@@ -192,37 +218,68 @@ class LogicTwitch(LogicModuleBase):
       logger.error('Exception:%s', e)
       logger.error(traceback.format_exc())
 
-  """
-  [cli][info] streamlink is running as root! Be careful!
-  [cli][info] Found matching plugin twitch for URL https://www.twitch.tv/jungtaejune
-  [cli][info] Available streams: audio_only, 160p (worst), 360p, 480p, 720p, 720p60, 1080p60 (best)
-  [cli][info] Opening stream: 1080p60 (hls)
-  [plugins.twitch][info] Will skip ad segments
-  [download][ddol_210905_1530.mp4] Written 23.68 GB (6h43m50s @ 1005.8 KB/s)  
-  """
+
+  def __set_streamlink_process_status(self, streamer_id, key, value):
+    '''
+    set streamlink_process_status and send socketio_callback('status') 
+    key and value can be string or list
+    '''
+    if type(key) == list:
+      for i in range(len(key)):
+        self.streamlink_process_status[streamer_id][key[i]] = value[i]
+    else:
+      self.streamlink_process_status[streamer_id][key] = value
+    # TODO: socketio 보내는데 자꾸 에러남
+    # 왜그러지
+    try:
+      self.socketio_callback('status', jsonify(self.streamlink_process_status))
+    except Exception as e:
+      logger.error(e)
+      logger.error(traceback.format_exc())
+
+
+
+  def __set_default_streamlink_process_status(self, streamer_id: str):
+    keys = [
+      'online', 'author', 'title', 
+      'category', 'started_timestamp', 'quality', 
+      'options', 'path', 'log', 
+      'status', 'size', 'elapsed_time',
+      'speed',
+    ]
+    values = [
+      False, 'No Author', 'No Title', 
+      'No Category', 0, '', 
+      [], '', [], 
+      '', '', '',
+      '',
+    ]
+    self.__set_streamlink_process_status(
+      streamer_id, 
+      keys, 
+      values
+    )
+
+
   def __spawn_children(self, streamer_id, filename, quality='best', options: list=[]):
     try:
-      def output_reader(proc, streamer_id):
-        for line in iter(proc.stdout.readline, b''):
-          print(f'[{streamer_id}]{line}', end='')
-          # print(f'[{streamer_id}]{line.decode("utf-8")}', end='')
-      # TODO: https://stackoverflow.com/a/636570
       # 지금 output_reader에서는 현재 진행상황이 표시가 안되네 
       # progress 표시하는게 버퍼에 쌓이지 않아서 그럼
       # -> bufsize=0, universal_newlines=True으로 해결
+      # [download][filename]에서 truncated되는건 streamlink자체 문제임. 사이즈 조절로 해결 안됨.
       command = ['python3', '-m', 'streamlink', '--output', filename]
       command = command + options
       command = command + [f'{self.twitch_prefix}{streamer_id}', quality]
 
       from subprocess import Popen, PIPE, STDOUT
-      self.children_processes[streamer_id] = Popen(
+      self.streamlink_processes[streamer_id] = Popen(
         command, 
         stdout=PIPE, 
         stderr=STDOUT,
         universal_newlines=True,
         bufsize=0,
       )
-      t = threading.Thread(target=output_reader, args=(self.children_processes[streamer_id], streamer_id,))
+      t = threading.Thread(target=self.__streamlink_process_handler, args=(self.streamlink_processes[streamer_id], streamer_id,))
       t.setDaemon(True)
       t.start()
       return f'spwan success: {streamer_id}'
@@ -231,13 +288,72 @@ class LogicTwitch(LogicModuleBase):
       logger.error(traceback.format_exc())
       return f'spawn failed: {streamer_id}'
 
+  """
+  [cli][info] streamlink is running as root! Be careful!
+  [cli][info] Found matching plugin twitch for URL https://www.twitch.tv/jungtaejune
+  [cli][info] Available streams: audio_only, 160p (worst), 360p, 480p, 720p, 720p60, 1080p60 (best)
+  [cli][info] Opening stream: 1080p60 (hls)
+  [plugins.twitch][info] Will skip ad segments
+  [download][ddol_210905_1530.mp4] Written 23.68 GB (6h43m50s @ 1005.8 KB/s)  
+  """
+  def __parse_download_log(self, log):
+    # [download][...] filename] Written 23.68 GB (6h43m50s @ 1005.8 KB/s) 
+    info = {}
+    raw = log.split(']')[-1].strip()
+    size_raw, time_speed_raw = raw.split('(')
+    size = size_raw.split('Written')[-1].strip()
+    elapsed_time, speed = time_speed_raw.split('@')
+    elapsed_time = elapsed_time.split('(')[-1].strip() # 아마도 '(' 이거 필요 없을 걸
+    speed = speed.split(')')[0].strip()
+    
+    info['size'] = size
+    info['elapsed_time'] = elapsed_time
+    info['speed'] = speed
+    return info
+
+
+  def __streamlink_process_handler(self, process, streamer_id):
+    ''' TODO:
+    다운로드 완료했을 때 정상적으로 정지하는지 확인 안해봤음. 
+    '''
+    for line in iter(process.stdout.readline, b''):
+      line = str(line).strip()
+      log_splitted = [i[1:] if i.startswith('[') else i.strip() for i in line.split(']')]
+      if log_splitted[0] == 'download':
+        info = self.__parse_download_log(line)
+        keys = [i for i in info]
+        keys.append('status')
+        values = [info[i] for i in info]
+        values.append(line)
+        self.__set_streamlink_process_status(
+          streamer_id, 
+          keys,
+          values
+        )
+      elif len(line) > 0:
+        keys = ['log']
+        values = [self.streamlink_process_status[streamer_id]['log']+[line]]
+        if 'Opening stream:' in line:
+          quality = line.split()[-2]
+          keys.append('quality')
+          values.append(quality)
+        self.__set_streamlink_process_status(
+          streamer_id, 
+          keys, 
+          values
+        )
+    process.wait()
+    self.streamlink_plugins[streamer_id] = None
+    self.streamlink_processes[streamer_id] = None
+    self.streamlink_process_status[streamer_id] = {}
+
 
   def __set_streamlink_info(self, streamer_id):
     info = {}
     plugin = self.streamlink_plugins[streamer_id]
-    # TODO: 특수문자 이스케이프
+
     author = plugin.get_author() or 'No Author'
-    title = plugin.get_title()
+    title = plugin.get_title() or 'No Title'
     category = plugin.get_category() or 'No Category'
 
     # 웹에서 띄어쓰기가 없거나 하나인데 여러개로 표시되는 문제
@@ -261,11 +377,11 @@ class LogicTwitch(LogicModuleBase):
       title = title.replace(key, replace_list[key])
       category = category.replace(key, replace_list[key])
     
-    info['online'] = len(plugin.streams()) > 0
-    info['author'] = author
-    info['title'] = title
-    info['category'] = category
-    self.streamlink_infos[streamer_id] = info
+    self.__set_streamlink_process_status(
+      streamer_id, 
+      ['online', 'author', 'title', 'category'], 
+      [len(plugin.streams()) > 0, author, title, category]
+    )
   
 
   def __parse_title_string(self, streamer_id, format_str):
@@ -276,11 +392,21 @@ class LogicTwitch(LogicModuleBase):
     '''
     result = format_str
     result = result.replace('{id}', streamer_id)
-    result = result.replace('{author}', self.streamlink_infos[streamer_id]['author'])
-    result = result.replace('{title}', self.streamlink_infos[streamer_id]['title'])
-    result = result.replace('{category}', self.streamlink_infos[streamer_id]['category'])
+    result = result.replace('{author}', self.streamlink_process_status[streamer_id]['author'])
+    result = result.replace('{title}', self.streamlink_process_status[streamer_id]['title'])
+    result = result.replace('{category}', self.streamlink_process_status[streamer_id]['category'])
     result = datetime.now().strftime(result)
     return result
+
+
+  def __init_properties(self, streamer_id, reset=False):
+    if reset or streamer_id not in self.streamlink_plugins:
+      self.streamlink_plugins[streamer_id] = None
+    if reset or streamer_id not in self.streamlink_processes:
+      self.streamlink_processes[streamer_id] = None
+    if reset or streamer_id not in self.streamlink_process_status:
+      self.streamlink_process_status[streamer_id] = {}
+      self.__set_default_streamlink_process_status(streamer_id)
 
 
 #########################################################
