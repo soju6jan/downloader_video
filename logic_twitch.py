@@ -33,7 +33,7 @@ class LogicTwitch(LogicModuleBase):
     'twitch_db_version': '1',
     'twitch_download_path': os.path.join(path_data, P.package_name, 'twitch'),
     'twitch_filename_format': '[%Y-%m-%d %H:%M][{category}] {title}',
-    'twitch_directory_name_format': '{author} ({id})/%Y-%m',
+    'twitch_directory_name_format': '{author} ({streamer_id})/%Y-%m',
     'twitch_streamer_ids': '',
     'twitch_auto_make_folder': 'True',
     'twitch_auto_start': 'False',
@@ -492,12 +492,12 @@ class LogicTwitch(LogicModuleBase):
 
   def __parse_title_string(self, streamer_id, format_str):
     '''
-    keywords: {author}, {title}, {category}, {id}
+    keywords: {author}, {title}, {category}, {streamer_id}
     and time foramt keywords: %m,%d,%Y, %H,%M,%S, ...
     https://docs.python.org/ko/3/library/datetime.html#strftime-and-strptime-format-codes
     '''
     result = format_str
-    result = result.replace('{id}', streamer_id)
+    result = result.replace('{streamer_id}', streamer_id)
     result = result.replace('{author}', self.streamlink_process_status[streamer_id]['author'])
     result = result.replace('{title}', self.streamlink_process_status[streamer_id]['title'])
     result = result.replace('{category}', self.streamlink_process_status[streamer_id]['category'])
