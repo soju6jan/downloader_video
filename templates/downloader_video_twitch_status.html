@@ -49,7 +49,7 @@ socket.on('start', function(data){
 });
 
 socket.on('update', function(data){
-  streamlink_process_status = data;
+  streamlink_process_status[data.streamer_id] = data.status;
   render_update(data);
 });
 

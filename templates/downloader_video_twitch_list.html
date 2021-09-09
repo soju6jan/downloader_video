@@ -61,6 +61,7 @@ $("body").on('click', '#page', function(e){
 $("#reset_btn").click(function(e) {
   e.preventDefault();
   document.getElementById("order").value = 'desc';
+  document.getElementById("option").value = 'all';
   document.getElementById("search_word").value = '';
   global_sub_request_search('1')
 });
