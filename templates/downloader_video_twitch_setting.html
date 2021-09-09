@@ -35,6 +35,26 @@
       {{ macros.setting_input_text('twitch_interval', '스케쥴링 실행 정보', value=arg['twitch_interval'], col='3', desc=['Inverval(minute 단위)이나 Cron 설정', '이 시간마다 온라인인지 체크합니다.']) }}
       {{ macros.setting_checkbox('twitch_auto_start', '시작시 자동실행', value=arg['twitch_auto_start'], desc='On : 시작시 자동으로 스케쥴러에 등록됩니다.') }}
       {{ macros.setting_input_textarea('twitch_streamer_ids', '아이디 목록', desc=['https://www.twitch.tv/ 이후에 있는 아이디를 입력하세요.', '예시: hanryang1125', '구분자 | 또는 엔터'], value=arg['twitch_streamer_ids'], row='10') }}
+    
+      <div class="row justify-content-center">
+        <div class="col-8">
+          <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <strong>참고</strong></br>
+            <hr style="width: 100%; margin:0px; background-color:#808080;" class="my-2">
+            <div class="row">
+              <div class="col">
+                이 플러그인은 스케쥴링 시간마다 해당 스트리머가 온라인인지 확인합니다.<br>
+                따라서 실제 방송 시작 시간과 다운로드 시작 시간이 다를 수 있습니다.<br>
+                <br>
+                플러그인 사용에 따른 책임은 개발자가 아닌 사용자 본인에게 있습니다.<br>
+              </div>
+            </div>
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   {{ macros.m_tab_content_end() }}
 
