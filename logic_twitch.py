@@ -64,7 +64,7 @@ class LogicTwitch(LogicModuleBase):
     'quality': '',
     'options': [],
     'download_path': '',
-    'log': ['message1', 'message2',],
+    'logs': ['message1', 'message2',],
     'status': 'status_string',
     'size': '',
     'elapsed_time': '',
@@ -103,17 +103,21 @@ class LogicTwitch(LogicModuleBase):
         command = req.form['command']
         result = {
           'previous_status': 'offline',
-          'returncode': '-1',
         }
 
         if command == 'disable':
+          '''
+          process 종료하면서 데몬으로 __set_default_streamlink_process_status처리하는데
+          그게 여기서 'enable': False 하는 것보다 나중에 실행되서
+          반영이 안됨.
+
+          그래서 __set_default_streamlink_process_status 함수에서
+          이전 상태 참조하는 코드 작성함
+          '''
           if self.streamlink_processes[streamer_id]:
             self.streamlink_processes[streamer_id].terminate()
             self.streamlink_processes[streamer_id].wait()
-            ModelTwitchItem.process_done(self.streamlink_process_status[streamer_id])
             result['previous_status'] = 'online'
-            result['returncode'] = self.streamlink_processes[streamer_id].returncode
-          self.__clear_process_after_done(streamer_id)
           self.__set_streamlink_process_status(streamer_id, 'enable', False)
         elif command == 'enable':
           self.__set_streamlink_process_status(streamer_id, 'enable', True)
@@ -225,7 +229,6 @@ class LogicTwitch(LogicModuleBase):
           download_path = os.path.join(download_path, filename)
           if not download_path.endswith('.mp4'):
             download_path = download_path + '.mp4'
-          # db set
           self.__set_streamlink_process_status(
             streamer_id,
             ['download_path', 'started_time', 'options', 'quality'],
@@ -333,17 +336,21 @@ class LogicTwitch(LogicModuleBase):
 
 
   def __set_default_streamlink_process_status(self, streamer_id: str):
+    enable_value = True
+    if streamer_id in self.streamlink_process_status and \
+      'enable' in self.streamlink_process_status[streamer_id]:
+      enable_value = self.streamlink_process_status[streamer_id]['enable']
     keys = [
       'db_id',
       'enable', 'online', 'author',
       'title', 'category', 'started_time',
       'quality', 'options', 'download_path',
-      'log', 'status', 'size',
+      'logs', 'status', 'size',
       'elapsed_time', 'speed', 'streams'
     ]
     values = [
       -1,
-      True, False, 'No Author',
+      enable_value, False, 'No Author',
       'No Title', 'No Category', 0,
       'No Quality', [], 'No Path',
       [], 'No Status', 'No Size',
@@ -372,7 +379,7 @@ class LogicTwitch(LogicModuleBase):
         stdout=PIPE,
         stderr=STDOUT,
         universal_newlines=True,
-        bufsize=1,
+        bufsize=0,
       )
       t = threading.Thread(target=self.__streamlink_process_handler, args=(self.streamlink_processes[streamer_id], streamer_id,))
       t.setDaemon(True)
@@ -400,7 +407,12 @@ class LogicTwitch(LogicModuleBase):
 
 
   def __streamlink_process_handler(self, process, streamer_id):
-    ''' TODO:
+    ''' 
+    1. 프로세스 로그 감시
+    2. 프로세스 종료하면 ModelTwitchItem.running = False로 변경
+    3. 프로세스 종료하면 self.__clear_process_after_done 실행
+    
+    TODO:
     수동으로 정지했을 때는 정상적으로 꺼짐.
     다운로드 완료했을 때 정상적으로 정지하는지 확인 안해봤음.
     '''
@@ -424,8 +436,8 @@ class LogicTwitch(LogicModuleBase):
         )
         ModelTwitchItem.update(self.streamlink_process_status[streamer_id])
       else:
-        keys = ['log']
-        values = [self.streamlink_process_status[streamer_id]['log']+[line]]
+        keys = ['logs']
+        values = [self.streamlink_process_status[streamer_id]['logs']+[line]]
         if 'Opening stream:' in line:
           quality = line.split()[-2]
           keys.append('quality')
@@ -435,10 +447,15 @@ class LogicTwitch(LogicModuleBase):
           keys,
           values
         )
-    process.wait()
+      # 정상적으로 stream 끝나면 [cli][info] Closing currently open stream... 나옴
+      if 'Closing currently open stream...' in line:
+        break
+    # 수동으로 정지명령하면 process 가 없는거같은데?
+    if process:
+      process.terminate()
+      process.wait()
     ModelTwitchItem.process_done(self.streamlink_process_status[streamer_id])
     self.__clear_process_after_done(streamer_id)
-
 
   def __set_streamlink_info(self, streamer_id):
     '''
@@ -476,6 +493,7 @@ class LogicTwitch(LogicModuleBase):
     outs = json.loads(outs) if outs is not None else ''
     errs = json.loads(errs) if errs is not None else ''
     streams = {}
+    proc.kill()
     if 'streams' in outs:
       for quality in outs['streams']:
         streams[quality] = outs['streams'][quality]['url']
@@ -553,6 +571,7 @@ class ModelTwitchItem(db.Model):
   elapsed_time = db.Column(db.String)
   quality = db.Column(db.String)
   options = db.Column(db.String)
+  logs = db.Column(db.String)
 
 
   def __init__(self):
@@ -664,6 +683,7 @@ class ModelTwitchItem(db.Model):
     item.elapsed_time = streamlink_process_status[streamer_id]['elapsed_time']
     item.quality = streamlink_process_status[streamer_id]['quality']
     item.options = '\n'.join(streamlink_process_status[streamer_id]['options'])
+    item.logs = '\n'.join(streamlink_process_status[streamer_id]['logs'])
     item.save()
     return item.id
 
@@ -676,4 +696,5 @@ class ModelTwitchItem(db.Model):
     item.quality = streamlink_process_status_streamer_id['quality']
     item.file_size = streamlink_process_status_streamer_id['size']
     item.elapsed_time = streamlink_process_status_streamer_id['elapsed_time']
+    item.logs = '\n'.join(streamlink_process_status_streamer_id['logs'])
     item.save()
