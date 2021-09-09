@@ -72,7 +72,9 @@ $("body").on('click', '#json_btn', function(e){
   const id = $(this).data('db_id');
   for (i in current_data.list) {
     if (current_data.list[i].id == id) {
-      m_modal(current_data.list[i])
+      json_data = JSON.parse(JSON.stringify(current_data.list[i])) // deep copy
+      json_data.logs = json_data.logs.split('\n')
+      m_modal(json_data)
     }
   }
 });
@@ -81,6 +83,13 @@ $('body').on('click', '#search_category_btn', function(e){
   e.preventDefault();
   const search_word = $(this).data('category');
   document.getElementById('search_word').value = search_word;
+  global_sub_request_search('1');
+})
+
+$('body').on('click', '#search_streamer_btn', function(e){
+  e.preventDefault();
+  const option_value = $(this).data('streamer_id');
+  document.getElementById('option').value = option_value;
   global_sub_request_search('1');
 })
 
@@ -133,17 +142,18 @@ function make_list(data) {
 
     str += m_row_start();
     str += m_col(2, `${data[i].created_time}`)
-    str += m_col(2, `${data[i].author} (${data[i].streamer_id})`)
+    str += m_col(2, `${data[i].author}<br>(${data[i].streamer_id})`)
     tmp = `${data[i].title}<br>${data[i].category}<br>화질: ${data[i].quality}`
     str += m_col(3, tmp)
 
     tmp = `크기: ${data[i].file_size}, 경과: ${data[i].elapsed_time} ${data[i].running ? '(다운로드 중)' : '(완료)'}`
+    const search_streamer_btn = m_button('search_streamer_btn', '스트리머검색', [{'key': 'streamer_id', 'value': data[i].streamer_id}]);
     const search_category_btn = m_button('search_category_btn', '카테고리검색', [{'key': 'category', 'value': data[i].category}]);
     const json_btn = m_button('json_btn', 'JSON', [{'key': 'db_id', 'value': data[i].id}]);
     const delete_btn = m_button('delete_btn', '삭제', [{'key': 'db_id', 'value': data[i].id}]);
     const delete_file_btn = m_button('delete_file_btn', '파일삭제', [{'key': 'db_id', 'value': data[i].id}]);
     tmp += '<br><br>'
-    tmp += m_button_group(search_category_btn + json_btn + delete_btn + delete_file_btn);
+    tmp += m_button_group(search_streamer_btn + search_category_btn + json_btn + delete_btn + delete_file_btn);
     str += m_col(5, tmp);
     str += m_row_end();
     if (i != data.length -1) str += m_hr();
