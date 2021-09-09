@@ -159,7 +159,7 @@ class LogicTwitch(LogicModuleBase):
     아이디 추가하면 스케줄링 한번 돌리려고 했는데
     그러면 설정 저장에서 로딩생기네 
     '''
-    streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|')
+    streamer_ids = [id for id in P.ModelSetting.get_list('twitch_streamer_ids', '|') if not id.startswith('#')]
     before_streamer_ids = [id for id in self.streamlink_plugins]
     old_streamer_ids = [id for id in before_streamer_ids if id not in streamer_ids]
     new_streamer_ids = [id for id in streamer_ids if id not in before_streamer_ids]
@@ -201,7 +201,7 @@ class LogicTwitch(LogicModuleBase):
 
       streamlink_quality = P.ModelSetting.get('streamlink_quality')
       streamlink_options = P.ModelSetting.get_list('streamlink_options', '|')
-      streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|')
+      streamer_ids = [id for id in P.ModelSetting.get_list('twitch_streamer_ids', '|') if not id.startswith('#')]
 
       download_directory = P.ModelSetting.get('twitch_download_path')
       make_child_directory = P.ModelSetting.get_bool('twitch_auto_make_folder')
@@ -271,7 +271,7 @@ class LogicTwitch(LogicModuleBase):
     if not os.path.isdir(P.ModelSetting.get('twitch_download_path')):
       os.makedirs(P.ModelSetting.get('twitch_download_path'), exist_ok=True) # mkdir -p
     ModelTwitchItem.plugin_load()
-    streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|')
+    streamer_ids = [id for id in P.ModelSetting.get_list('twitch_streamer_ids', '|') if not id.startswith('#')]
     for streamer_id in streamer_ids:
       self.__init_properties(streamer_id)
 
