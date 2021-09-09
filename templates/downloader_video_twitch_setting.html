@@ -18,9 +18,9 @@
     {{ macros.info_text_and_buttons('is_streamlink_installed', 'steamlink 설치상태', [['streamlink_install_btn', '설치']], value=arg['is_streamlink_installed'], desc=['도커 지원.', '그외 환경에서는 pip 명령만 보내나 컴파일이 필요한 모듈이 있어 설치가 실패할 수도 있습니다.', '이 경우는 각자 알아서 설치하시기 바랍니다.']) }}
     <div class="streamlink_dependency" >
       {{ macros.setting_input_text('streamlink_quality', 'streamlink 화질', col='3', value=arg['streamlink_quality'], desc=['best, worst, audio_only 등']) }}
-      {{ macros.setting_input_textarea('streamlink_options', 'streamlink 옵션', row='5', value=arg['streamlink_options'], desc=['https://streamlink.github.io/cli.html#twitch', '구분자 | 또는 엔터']) }}
+      {{ macros.setting_input_textarea('streamlink_options', 'streamlink-cli 옵션', row='5', value=arg['streamlink_options'], desc=['https://streamlink.github.io/cli.html#twitch', '구분자 | 또는 엔터']) }}
       {{ macros.setting_input_text('twitch_download_path', '저장 폴더', value=arg['twitch_download_path'], desc='방송 스트림이 저장될 폴더입니다. 적어도 100GB 이상은 여유가 있는게 좋습니다.') }}
-      {{ macros.setting_checkbox('twitch_auto_make_folder', '스트리머 폴더 생성', value=arg['twitch_auto_make_folder'], desc='스트리머 이름으로 폴더를 생성하고 폴더 안에 다운로드합니다.') }}
+      {{ macros.setting_checkbox('twitch_auto_make_folder', '하위 폴더 생성', value=arg['twitch_auto_make_folder'], desc='스트리머 이름으로 폴더를 생성하고 폴더 안에 다운로드합니다.') }}
       <div id="twitch_auto_make_folder_div" class="collapse">
         {{ macros.setting_input_text('twitch_directory_name_format', '폴더명 포맷', col='6', value=arg['twitch_directory_name_format'], desc=['지원 키워드: {author}, {title}, {category}, {id}, %Y%m 등의 날짜 포맷', 'title과 category는 다운 시작할 시점 기준.', '하위 디렉토리는 /으로 구분']) }}
       </div>
@@ -34,7 +34,7 @@
       {{ macros.setting_global_scheduler_sub_button(arg['scheduler'], arg['is_running']) }}
       {{ macros.setting_input_text('twitch_interval', '스케쥴링 실행 정보', value=arg['twitch_interval'], col='3', desc=['Inverval(minute 단위)이나 Cron 설정']) }}
       {{ macros.setting_checkbox('twitch_auto_start', '시작시 자동실행', value=arg['twitch_auto_start'], desc='On : 시작시 자동으로 스케쥴러에 등록됩니다.') }}
-      {{ macros.setting_input_textarea('twitch_streamer_ids', '자동 다운로드할 아이디', desc=['https://www.twitch.tv/ 이후에 있는 아이디를 입력하세요.', '예시: hanryang1125', '구분자 | 또는 엔터'], value=arg['twitch_streamer_ids'], row='10') }}
+      {{ macros.setting_input_textarea('twitch_streamer_ids', '아이디 목록', desc=['https://www.twitch.tv/ 이후에 있는 아이디를 입력하세요.', '예시: hanryang1125', '구분자 | 또는 엔터'], value=arg['twitch_streamer_ids'], row='10') }}
     </div>
   {{ macros.m_tab_content_end() }}
 

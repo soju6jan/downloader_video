@@ -170,7 +170,9 @@ class LogicTwitch(LogicModuleBase):
       self.__init_properties(new_streamer_id)
 
 
-
+  # TODO: 
+  # 임시 디렉토리 설정 할까 말까
+  #
   def scheduler_function(self):
     try:
       if not self.streamlink_session:
@@ -394,8 +396,8 @@ class LogicTwitch(LogicModuleBase):
         continue
       # logger.debug(line)
 
-      # [cli] 있는지 체크는 왜 필요하냐: 프로세스 종료될 때 마지막 코드가 한 라인에 나옴
-      if line.startswith('[download]') and '[cli]' not in line:
+      # [info] [warning] 체크는 왜 필요하냐: 프로세스 종료될 때 마지막 코드가 한 라인에 나옴
+      if line.startswith('[download]') and '[info]' not in line and '[warning]' not in line:
         info = self.__parse_download_log(line)
         keys = [i for i in info]
         keys.append('status')
@@ -538,6 +540,7 @@ class ModelTwitchItem(db.Model):
   quality = db.Column(db.String)
   options = db.Column(db.String)
 
+
   def __init__(self):
     self.running = True
 
@@ -652,6 +655,7 @@ class ModelTwitchItem(db.Model):
     item.author = streamlink_process_status_streamer_id['author']
     item.title = streamlink_process_status_streamer_id['title']
     item.category = streamlink_process_status_streamer_id['category']
+    item.quality = streamlink_process_status_streamer_id['quality']
     item.file_size = streamlink_process_status_streamer_id['size']
     item.elapsed_time = streamlink_process_status_streamer_id['elapsed_time']
     item.save()

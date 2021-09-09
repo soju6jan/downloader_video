@@ -138,7 +138,7 @@ function make_list(data) {
     const delete_btn = m_button('delete_btn', '삭제', [{'key': 'db_id', 'value': data[i].id}]);
     const delete_file_btn = m_button('delete_file_btn', '파일삭제', [{'key': 'db_id', 'value': data[i].id}]);
     tmp += '<br><br>'
-    tmp += m_button_group(search_category_btn + json_btn + '\t' + delete_btn + delete_file_btn);
+    tmp += m_button_group(search_category_btn + json_btn + delete_btn + delete_file_btn);
     str += m_col(5, tmp);
     str += m_row_end();
     if (i != data.length -1) str += m_hr();
@@ -150,7 +150,6 @@ function set_options()
 {
   if(current_data === null || !current_data.hasOwnProperty('streamer_ids'))
   {
-    console.log(1);
     setTimeout(set_options, 100);
   }
   else
