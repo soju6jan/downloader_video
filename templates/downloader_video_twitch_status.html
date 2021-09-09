@@ -32,6 +32,10 @@
     margin-left: 0.1em;
     margin-right: 0.1em;
   }
+
+  .status_speed{
+    font-size: small;
+  }
 </style>
 
 <script type="text/javascript">
@@ -111,7 +115,7 @@ function render_list(streamlink_process_status)
     let stream_info = `<div id=${streamer_id}_stream_info>${streamlink_process_status[streamer_id].title}<br>${category_link(streamlink_process_status[streamer_id].category)}</div>`
     let started_time = `<div id=${streamer_id}_started_time>${datetime || 'Offline'}</div>`;
     let elapsed_time = `<div id=${streamer_id}_elapsed_time>${streamlink_process_status[streamer_id].elapsed_time}</div>`;
-    let speed = `<div id=${streamer_id}_speed>${streamlink_process_status[streamer_id].speed}</div>`
+    let speed = `<div id=${streamer_id}_speed class="status_speed">${streamlink_process_status[streamer_id].speed}</div>`
     let size = `<div id=${streamer_id}_size>${streamlink_process_status[streamer_id].size}</div>`
 
     str += m_row_start_id(streamer_id, datetime !== 0);

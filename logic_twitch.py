@@ -113,7 +113,7 @@ class LogicTwitch(LogicModuleBase):
             ModelTwitchItem.process_done(self.streamlink_process_status[streamer_id])
             result['previous_status'] = 'online'
             result['returncode'] = self.streamlink_processes[streamer_id].returncode
-          self.__clear_process(streamer_id)
+          self.__clear_process_after_done(streamer_id)
           self.__set_streamlink_process_status(streamer_id, 'enable', False)
         elif command == 'enable':
           self.__set_streamlink_process_status(streamer_id, 'enable', True)
@@ -325,10 +325,11 @@ class LogicTwitch(LogicModuleBase):
     self.socketio_callback('update', self.__get_converted_streamlink_process_status_streamer_id(streamer_id))
 
 
-  def __clear_process(self, streamer_id):
+  def __clear_process_after_done(self, streamer_id):
     self.streamlink_plugins[streamer_id] = None
     self.streamlink_processes[streamer_id] = None
     self.__set_default_streamlink_process_status(streamer_id)
+    logger.debug(f'[completed][{streamer_id}]')
 
 
   def __set_default_streamlink_process_status(self, streamer_id: str):
@@ -436,7 +437,7 @@ class LogicTwitch(LogicModuleBase):
         )
     process.wait()
     ModelTwitchItem.process_done(self.streamlink_process_status[streamer_id])
-    self.__clear_process(streamer_id)
+    self.__clear_process_after_done(streamer_id)
 
 
   def __set_streamlink_info(self, streamer_id):
