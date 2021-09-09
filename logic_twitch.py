@@ -37,8 +37,8 @@ class LogicTwitch(LogicModuleBase):
     'twitch_streamer_ids': '',
     'twitch_auto_make_folder': 'True',
     'twitch_auto_start': 'False',
-    'twitch_interval': '2',
-    'streamlink_quality': 'best',
+    'twitch_interval': '1',
+    'streamlink_quality': '1080p60,best',
     'streamlink_options': '--twitch-disable-hosting\n--twitch-disable-ads\n--twitch-disable-reruns\n',
   }
   twitch_prefix = 'https://www.twitch.tv/'
@@ -128,7 +128,6 @@ class LogicTwitch(LogicModuleBase):
         self.is_streamlink_installed = True
         return jsonify({})
       elif sub == 'web_list': # list 탭에서 요청
-        # streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|')
         database = ModelTwitchItem.web_list(req)
         database['streamer_ids'] = ModelTwitchItem.get_streamer_ids()
         return jsonify(database)
@@ -181,6 +180,19 @@ class LogicTwitch(LogicModuleBase):
   # TODO: 
   # 임시 디렉토리 설정 할까 말까
   # rclone 마운트에 직접 다운했을 때 문제 생기면 추가하자
+  #
+  # TODO:
+  # self.streamlink_plugins 이 제대로 갱신이 안되는건지
+  # 정지 이후에 다시 다운로드를 했는데
+  # title이 outdated된 값으로 설정되었음.
+  # 다운로드에는 큰 문제가 아니니 일단 스킵.
+  #
+  # TODO:
+  # 스트림 시작 매우 초기에 1080p60 (source) 이 있을텐데도,
+  # best로 설정했는데 720p60 으로 다운로드 되는 문제
+  # -> 일단 화질을 1080p60,best로 설정해놓음
+  # 이래도 안되면 트위치 초기 문제일 것
+  #
   def scheduler_function(self):
     try:
       if not self.streamlink_session:
@@ -256,6 +268,8 @@ class LogicTwitch(LogicModuleBase):
       self.is_streamlink_installed = True
     except:
       return False
+    if not os.path.isdir(P.ModelSetting.get('twitch_download_path')):
+      os.makedirs(P.ModelSetting.get('twitch_download_path'), exist_ok=True) # mkdir -p
     ModelTwitchItem.plugin_load()
     streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|')
     for streamer_id in streamer_ids:
@@ -324,7 +338,7 @@ class LogicTwitch(LogicModuleBase):
         self.streamlink_process_status[streamer_id][key[i]] = value[i]
     else:
       self.streamlink_process_status[streamer_id][key] = value
-    # status 전부 보내면 비효율적이니까 하나씩 보냄
+    # 모든 status 보내면 비효율적이니까 하나씩 보냄
     self.socketio_callback('update', self.__get_converted_streamlink_process_status_streamer_id(streamer_id))
 
 
@@ -420,7 +434,6 @@ class LogicTwitch(LogicModuleBase):
       line = str(line).strip()
       if len(line) < 1:
         continue
-      # logger.debug(line)
 
       # [info] [warning] 체크는 왜 필요하냐: 프로세스 종료될 때 마지막 코드가 한 라인에 나옴
       if line.startswith('[download]') and '[info]' not in line and '[warning]' not in line:
@@ -450,7 +463,6 @@ class LogicTwitch(LogicModuleBase):
       # 정상적으로 stream 끝나면 [cli][info] Closing currently open stream... 나옴
       if 'Closing currently open stream...' in line:
         break
-    # 수동으로 정지명령하면 process 가 없는거같은데?
     if process:
       process.terminate()
       process.wait()
