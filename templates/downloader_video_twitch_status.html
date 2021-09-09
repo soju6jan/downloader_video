@@ -7,15 +7,28 @@
   {{ macros.m_hr_head_top() }}
   {{ macros.m_row_start('0') }}
   {{ macros.m_col(2,  macros.m_strong('Streamer')) }}
-  {{ macros.m_col(2,  macros.m_strong('DownloadStartedTime')) }}
-  {{ macros.m_col(2,  macros.m_strong('LocalUptime')) }}
+  {{ macros.m_col(2,  macros.m_strong('Started')) }}
   {{ macros.m_col(2,  macros.m_strong('Title')) }}
   {{ macros.m_col(2,  macros.m_strong('Category')) }}
+  {{ macros.m_col(1,  macros.m_strong('Elapsed')) }}
+  {{ macros.m_col(1,  macros.m_strong('Speed')) }}
   {{ macros.m_col(2,  macros.m_strong('Detail')) }}
   {{ macros.m_row_end() }}
   {{ macros.m_hr_head_bottom() }}
   <div id="status_list_div"></div>
 </div> <!--전체-->
+
+<style>
+  .online{
+    background-color: lightblue;
+    border-radius: 1em;
+  }
+
+  .offline{
+    background-color: lightpink;
+    border-radius: 1em;
+  }
+</style>
 
 <script type="text/javascript">
 var package_name = "{{arg['package_name'] }}";
@@ -31,65 +44,37 @@ socket.on('start', function(data){
   on_start();
 });
 
-socket.on('status', function(data){
-  on_status(data);
+socket.on('update', function(data){
+  streamlink_process_status = data;
+  render_update(data);
 });
+
+function m_button_group_from_list(buttons)
+{
+  let str = '<div class="btn-group btn-group-sm flex-wrap mr-2" role="group">';
+  buttons.forEach(button => {
+    str += button;
+  })
+  str += '</div>';
+  return str;
+}
 
 function on_start() {
   $.ajax({
     url: `/${package_name}/ajax/${sub}/entity_list`,
-    type: "POST", 
+    type: "GET", 
     cache: false,
-    data: {},
-    dataType: "json",
     success: function (data) {
       streamlink_process_status = data;
-      render_list(data)
-      // for(let id in data)
-      // {
-      //   set_uptime(id);
-      //   setInterval(()=>{
-      //     set_uptime(id)
-      //   }, 1000);
-      // }
-      // make_download_list(data)
+      render_list(data);
     }
   });
 }
 
-function set_uptime(streamer_id)
-{
-  let timestamp = document.getElementById(`${streamer_id}_started_timestamp`).getAttribute('value');
-
-  // 일부러 === 안씀
-  if(timestamp == 0)
-  {
-    return;
-  }
-
-  let timeDifference = new Date() - timestamp
-  let daysDifference = Math.floor(timeDifference/1000/60/60/24);
-  timeDifference -= daysDifference*1000*60*60*24
-  let hoursDifference = Math.floor(timeDifference/1000/60/60);
-  timeDifference -= hoursDifference*1000*60*60
-  let minutesDifference = Math.floor(timeDifference/1000/60);
-  timeDifference -= minutesDifference*1000*60
-  let secondsDifference = Math.floor(timeDifference/1000);
-  let uptimeString = `${daysDifference>0 ? daysDifference+'d ' : ''}`;
-  uptimeString += `${hoursDifference>0 ? hoursDifference+'h ' : ''}`;
-  uptimeString += `${minutesDifference>0 ? minutesDifference+'m ' : ''}`;
-  uptimeString += `${secondsDifference}s`;
-
-  document.getElementById(`${streamer_id}_uptime`).innerText = uptimeString;
-}
-
-function get_timestring(date)
-{
-  let month = date.getMonth()+1 < 10 ? `0${date.getMonth()+1}` : date.getMonth()+1;
-  let day = date.getDate() < 10 ? `0${date.getDate()}` : date.getDate();
-  let hour = date.getHours() < 10 ? `0${date.getHours()}` : date.getHours();
-  let minute = date.getMinutes() < 10 ? `0${date.getMinutes()}` : date.getMinutes();
-  return `${day}/${month} ${hour}:${minute}`;
+function m_row_start_id(id, online) {
+  let str = m_row_start();
+  str = str.replace(`class="row"`, `id=${id} class="row ${online ? 'online' : 'offline'}"`);
+  return str;
 }
 
 function render_list(streamlink_process_status)
@@ -98,32 +83,41 @@ function render_list(streamlink_process_status)
   for (let streamer_id in streamlink_process_status)
   {
     g_data = streamlink_process_status;
+    
+    let name = streamlink_process_status[streamer_id].author !== "No Author" ? `${streamlink_process_status[streamer_id].author} (${streamer_id})` : streamer_id;
+    let streamer = `<div id=${streamer_id}_streamer>${name}</div>`
+    
+    let title = `<div id=${streamer_id}_title>${streamlink_process_status[streamer_id].title}</div>`;
+    let category = `<div id=${streamer_id}_category>${streamlink_process_status[streamer_id].category}</div>`;
 
-    let timestamp = streamlink_process_status[streamer_id].started_timestamp;
-    let dateString = `<div id=${streamer_id}_started_timestamp value=${timestamp}>Not Running</div>`;
-    let uptimeString = `<div id=${streamer_id}_uptime>Not Running</div>`;
+    let datetime = streamlink_process_status[streamer_id].started_time;
+    let started_time = `<div id=${streamer_id}_started_time>${datetime || 'Offline'}</div>`;
+    let elapsed_time = `<div id=${streamer_id}_elapsed_time>${streamlink_process_status[streamer_id].elapsed_time}</div>`;
+    let speed = `<div id=${streamer_id}_speed>${streamlink_process_status[streamer_id].speed}</div>`
 
-    if(timestamp !== 0)
-    {
-      let date = new Date(timestamp)
-      dateString = `<div id=${streamer_id}_started_timestamp value=${timestamp}>${get_timestring(date)}</div>`
-    }
-
-    let tite = `<div></div>`;
-    let category = `<div></div>`;
-
-    str += m_row_start();
-    str += m_col(2, streamer_id);
-    str += m_col(2, dateString);
-    str += m_col(2, uptimeString),
-    str += m_col(2, streamlink_process_status[streamer_id].title);
-    str += m_col(2, streamlink_process_status[streamer_id].category);
+    str += m_row_start_id(streamer_id, datetime !== 0);
+    str += m_col(2, streamer);
+    str += m_col(2, started_time);
+    str += m_col(2, title);
+    str += m_col(2, category);
+    str += m_col(1, elapsed_time),
+    str += m_col(1, speed);
     let detail_button = m_button('detail_btn', '자세히', [{
       'key':'id', 
       'value': streamer_id,
     }]);
-    detail_button = m_button_group(detail_button)
-    str += m_col(2, detail_button)
+    let stop_button = m_button('stop_btn', streamlink_process_status[streamer_id].enable == true ? '중지' : '시작', [
+      {
+        'key': 'id',
+        'value': streamer_id,
+      },
+      {
+        'key': 'command',
+        'value': streamlink_process_status[streamer_id].enable == true ? 'disable' : 'enable'
+      }
+    ])
+    button_group = m_button_group_from_list([detail_button, stop_button])
+    str += m_col(2, button_group)
     str += m_row_end()
     if (streamer_id != streamlink_process_status[streamlink_process_status.length - 1]) str += m_hr(0);
   }
@@ -131,33 +125,82 @@ function render_list(streamlink_process_status)
 }
 
 
-function on_status(data) {
-  streamlink_process_status = data;
+function render_update(data)
+{
+  for(let streamer_id in data)
+  {
+    const status_div = document.getElementById(streamer_id);
+    const div_streamer = document.getElementById(`${streamer_id}_streamer`)
+    const div_title = document.getElementById(`${streamer_id}_title`)
+    const div_category = document.getElementById(`${streamer_id}_category`)
+    const div_started_time = document.getElementById(`${streamer_id}_started_time`)
+    const div_elapsed_time = document.getElementById(`${streamer_id}_elapsed_time`)
+    const div_speed = document.getElementById(`${streamer_id}_speed`);
 
+
+    div_streamer.innerText = data[streamer_id].author !== "No Author" ? `${data[streamer_id].author} (${streamer_id})` : streamer_id;
+    div_title.innerText = data[streamer_id].title;
+    div_category.innerText = data[streamer_id].category;
+    div_started_time.innerText = data[streamer_id].started_time || 'Offline';
+    div_elapsed_time.innerText = data[streamer_id].elapsed_time;
+    div_speed.innerText = data[streamer_id].speed;
+
+    if(data[streamer_id].started_time)
+    {
+      status_div.classList.remove('offline');
+      status_div.classList.add('online');
+    }
+    else
+    {
+      status_div.classList.remove('online');
+      status_div.classList.add('offline');
+    }
+  }
 }
 
 
-/**
- * 이거를 첫 로딩했던 데이터만 가져오는게 나으려나
- * 소켓통신으로 실시간으로 받아오는게 나으려나
- * 
- * logic_twitch.py에서 self.streamlink_process_status가 변하면
- * 소켓으로 데이터 보내주는게 제일 나을거같은데
- * 
- * 리액트면 바로 했다 ㅇㅈ?
- * flask에 react 연동 가능하나
- */
 $("body").on('click', '#detail_btn', function(e){
   e.preventDefault();
-  let streamer_id = $(this).data('id')
-  document.getElementById("confirm_title").innerHTML = streamer_id;
-  document.getElementById('confirm_body').innerHTML = JSON.stringify(streamlink_process_status[streamer_id]);
-  $("#confirm_modal").modal();
-  return;
-
-  // send_data = {'command':'cancel', 'entity_id':entity_id}
-  // queue_command(send_data)
+  const streamer_id = $(this).data('id')
+  m_modal(
+    data=streamlink_process_status[streamer_id],  
+    title=document.getElementById(`${streamer_id}_streamer`).innerText,
+  )
 });
+
+$("body").on('click', '#stop_btn', function(e){
+  e.preventDefault();
+  const next_status = {
+    'enable': 'disable',
+    'disable': 'enable',
+  }
+  const next_text = {
+    'enable': '중지',
+    'disable': '시작',
+  }
+  const streamer_id = $(this).data('id');
+  const command = $(this).data('command');
+  const streamer = document.getElementById(`${streamer_id}_streamer`).innerText;
+  $.ajax({
+    url: `/${package_name}/ajax/${sub}/toggle`,
+    type: 'POST',
+    cache: false,
+    data: {
+      'streamer_id': streamer_id,
+      'command': command,
+    },
+    dataType: 'json',
+    success: (ret) => {
+      const returncode_log = ret.returncode == '-1' ? '' : `리턴 코드: ${ret.returncode}<br>`
+      $.notify(
+        `<strong>${streamer}<br>이전 상태: ${ret.previous_status}  ${returncode_log}다운로드활성화: ${command}${command === 'disable' ? '<br>재시작 전까지 이 항목은 자동으로 시작되지 않습니다.' : ''}</strong>`,
+        {type: 'success'}
+      );
+      $(this).text(next_text[command]);
+      $(this).data('command', next_status[command]);
+    }
+  })
+})
 
 function queue_command(data) {
   $.ajax({

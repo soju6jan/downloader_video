@@ -11,8 +11,6 @@
             <option value="asc">오래된순</option>
           </select>
           <select id="option" name="option" class="form-control form-control-sm">
-            <option value="all">전체</option>
-            <option value="completed">완료</option>
           </select>
         </span>
         <span class="col-md-8">
@@ -26,8 +24,9 @@
   <div id='page1'></div>
   {{ macros.m_hr_head_top() }}
   {{ macros.m_row_start('0') }}
-  {{ macros.m_col(2,  macros.m_strong('Poster')) }}
-  {{ macros.m_col(10,  macros.m_strong('Info')) }}
+  {{ macros.m_col(2,  macros.m_strong('StartedTime')) }}
+  {{ macros.m_col(2,  macros.m_strong('Streamer')) }}
+  {{ macros.m_col(8,  macros.m_strong('Info')) }}
   {{ macros.m_row_end() }}
   {{ macros.m_hr_head_bottom() }}
   <div id="list_div"></div>
@@ -39,8 +38,10 @@ var package_name = "{{arg['package_name']}}";
 var sub = "{{arg['sub']}}";
 var current_data = null;
 
+
 $(document).ready(function(){
   global_sub_request_search('1');
+  set_options();
 });
 
 $("#search").click(function(e) {
@@ -56,7 +57,6 @@ $("body").on('click', '#page', function(e){
 $("#reset_btn").click(function(e) {
   e.preventDefault();
   document.getElementById("order").value = 'desc';
-  document.getElementById("option").value = 'all';
   document.getElementById("search_word").value = '';
   global_sub_request_search('1')
 });
@@ -64,7 +64,7 @@ $("#reset_btn").click(function(e) {
 
 $("body").on('click', '#json_btn', function(e){
   e.preventDefault();
-  var id = $(this).data('id');
+  const id = $(this).data('db_id');
   for (i in current_data.list) {
     if (current_data.list[i].id == id) {
       m_modal(current_data.list[i])
@@ -72,73 +72,105 @@ $("body").on('click', '#json_btn', function(e){
   }
 });
 
-$("body").on('click', '#self_search_btn', function(e){
+$('body').on('click', '#search_category_btn', function(e){
   e.preventDefault();
-  var search_word = $(this).data('title');
-  document.getElementById("search_word").value = search_word;
-  global_sub_request_search('1')
-});
+  const search_word = $(this).data('category');
+  document.getElementById('search_word').value = search_word;
+  global_sub_request_search('1');
+})
 
-$("body").on('click', '#remove_btn', function(e) {
+$("body").on('click', '#delete_btn', function(e) {
   e.preventDefault();
-  id = $(this).data('id');
+  const id = $(this).data('db_id');
+  const delete_file = false;
   $.ajax({
     url: '/'+package_name+'/ajax/'+sub+ '/db_remove',
     type: "POST", 
     cache: false,
-    data: {id:id},
+    data: {id:id, delete_file:delete_file},
     dataType: "json",
-    success: function (data) {
-      if (data) {
-        $.notify('<strong>삭제되었습니다.</strong>', {
-          type: 'success'
-        });
-        global_sub_request_search(current_data.paging.current_page, false)
-      } else {
-        $.notify('<strong>삭제 실패</strong>', {
-          type: 'warning'
-        });
-      }
-    }
+    success: delete_btn_callback
   });
 });
 
-$("body").on('click', '#request_btn', function(e){
+$("body").on('click', '#delete_file_btn', function(e) {
   e.preventDefault();
-  var content_code = $(this).data('content_code');
-  $(location).attr('href', '/' + package_name + '/' + sub + '/request?content_code=' + content_code)
+  const id = $(this).data('db_id');
+  const delete_file = true
+  $.ajax({
+    url: '/'+package_name+'/ajax/'+sub+ '/db_remove',
+    type: "POST", 
+    cache: false,
+    data: {id:id, delete_file:delete_file},
+    dataType: "json",
+    success: delete_btn_callback
+  });
 });
 
+function delete_btn_callback(data) {
+  if (data && data['ret'] === true) {
+    $.notify('<strong>삭제되었습니다.</strong>', {
+      type: 'success'
+    });
+    global_sub_request_search(current_data.paging.current_page, false)
+  } else {
+    $.notify(`<strong>삭제 실패${data ? '<br>'+data['msg'] : ''}</strong>`, {
+      type: 'warning'
+    });
+  }
+}
 
 
 function make_list(data) {
-  //console.log(data)
-  str = '';
+  let str = '';
   for (i in data) {
-    //console.log(data[i])
+    let tmp = '';
+
     str += m_row_start();
-    str += m_col(1, data[i].id);
-    tmp = (data[i].status == 'completed') ? '완료' : '미완료';
-    str += m_col(1, tmp);
-    tmp = data[i].created_time + '(추가)';
-    if (data[i].completed_time != null)
-      tmp += data[i].completed_time + '(완료)';
+    str += m_col(2, `${data[i].created_time}`)
+    str += m_col(2, `${data[i].author} (${data[i].streamer_id})`)
+    tmp = `${data[i].title}<br>${data[i].category}<br>화질: ${data[i].quality}`
     str += m_col(3, tmp)
-    tmp = data[i].savepath + '<br>' + data[i].filename + '<br><br>';
-    tmp2 = m_button('json_btn', 'JSON', [{'key':'id', 'value':data[i].id}]);
-    tmp2 += m_button('request_btn', '작품 검색', [{'key':'content_code', 'value':data[i].content_code}]);
-    tmp2 += m_button('self_search_btn', '목록 검색', [{'key':'title', 'value':data[i].title}]);
-    tmp2 += m_button('remove_btn', '삭제', [{'key':'id', 'value':data[i].id}]);
-    tmp += m_button_group(tmp2)
-    str += m_col(7, tmp)
+
+    tmp = `크기: ${data[i].file_size}, 경과: ${data[i].elapsed_time} ${data[i].running ? '(다운로드 중)' : '(완료)'}`
+    const search_category_btn = m_button('search_category_btn', '카테고리검색', [{'key': 'category', 'value': data[i].category}]);
+    const json_btn = m_button('json_btn', 'JSON', [{'key': 'db_id', 'value': data[i].id}]);
+    const delete_btn = m_button('delete_btn', '삭제', [{'key': 'db_id', 'value': data[i].id}]);
+    const delete_file_btn = m_button('delete_file_btn', '파일삭제', [{'key': 'db_id', 'value': data[i].id}]);
+    tmp += '<br><br>'
+    tmp += m_button_group(search_category_btn + json_btn + '\t' + delete_btn + delete_file_btn);
+    str += m_col(5, tmp);
     str += m_row_end();
     if (i != data.length -1) str += m_hr();
   }
   document.getElementById("list_div").innerHTML = str;
 }
 
+function set_options()
+{
+  if(current_data === null || !current_data.hasOwnProperty('streamer_ids'))
+  {
+    console.log(1);
+    setTimeout(set_options, 100);
+  }
+  else
+  {
+    const option_div = document.getElementById('option');
+    option_div.innerHTML = ''
 
-
+    const default_child = document.createElement('option');
+    default_child.value = 'all';
+    default_child.text = '전체';
+    option_div.appendChild(default_child);
+    for(const streamer_id of current_data.streamer_ids)
+    {
+      const option_child = document.createElement('option')
+      option_child.value = streamer_id;
+      option_child.text = streamer_id;
+      option_div.appendChild(option_child);
+    }
+  }
+}
 
 </script>    
 {% endblock %}

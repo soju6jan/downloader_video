@@ -32,12 +32,12 @@ class LogicTwitch(LogicModuleBase):
   db_default = {
     'twitch_db_version': '1',
     'twitch_download_path': os.path.join(path_data, P.package_name, 'twitch'),
-    'twitch_filename_format': '[%Y%m%d][%H%M] [{category}] {title}',
+    'twitch_filename_format': '[%Y-%m-%d %H:%M][{category}] {title}',
     'twitch_directory_name_format': '{author} ({id})/%Y-%m',
     'twitch_streamer_ids': '',
     'twitch_auto_make_folder': 'True',
     'twitch_auto_start': 'False',
-    'twitch_interval': '* * * * *',
+    'twitch_interval': '2',
     'streamlink_quality': 'best',
     'streamlink_options': '--force-progress\n--twitch-disable-hosting\n--twitch-disable-ads\n--twitch-disable-reruns\n',
   }
@@ -49,34 +49,37 @@ class LogicTwitch(LogicModuleBase):
   '''
   streamlink_processes = {}
   '''
-  'streamer_id': <subprocess.Popen> 
+  'streamer_id': <subprocess.Popen>
   '''
   streamlink_process_status = {}
   '''
   'streamer_id': {
+    'db_id': 0,
+    'enable': bool,
     'online': bool,
     'author': str,
     'title': str,
     'category': str,
-    'started_timestamp': 0,
+    'started_time': 0 or datetime object,
     'quality': '',
     'options': [],
-    'path': '',
+    'download_path': '',
     'log': ['message1', 'message2',],
     'status': 'status_string',
     'size': '',
     'elapsed_time': '',
     'speed': '',
+    'streams': [],
   }
   '''
   streamlink_session = None
-  
+
 
   def __init__(self, P):
     super(LogicTwitch, self).__init__(P, 'setting', scheduler_desc='twitch 라이브 다운로드')
     self.name = 'twitch'
     default_route_socketio(P, self)
-  
+
 
   def process_menu(self, sub, req):
     arg = P.ModelSetting.to_dict()
@@ -89,81 +92,145 @@ class LogicTwitch(LogicModuleBase):
         arg['is_streamlink_installed'] = 'Installed' if self.is_streamlink_installed else 'Not installed'
       return render_template(f'{P.package_name}_{self.name}_{sub}.html', arg=arg)
     return render_template('sample.html', title=f'404: {P.package_name} - {sub}')
-  
+
 
   def process_ajax(self, sub, req):
     try:
-      if sub == 'entity_list': # 처음에 queue에서 요청.
-        return jsonify(self.streamlink_process_status)
-      elif sub == 'web_list':
-        return jsonify({})
+      if sub == 'entity_list': # status 초기화
+        return jsonify(self.__get_converted_streamlink_process_status())
+      elif sub == 'toggle':
+        streamer_id = req.form['streamer_id']
+        command = req.form['command']
+        result = {
+          'previous_status': 'offline',
+          'returncode': '-1',
+        }
+
+        if command == 'disable':
+          if self.streamlink_processes[streamer_id]:
+            self.streamlink_processes[streamer_id].terminate()
+            self.streamlink_processes[streamer_id].wait()
+            ModelTwitchItem.process_done(self.streamlink_process_status[streamer_id])
+            result['previous_status'] = 'online'
+            result['returncode'] = self.streamlink_processes[streamer_id].returncode
+          self.__clear_process(streamer_id)
+          self.__set_streamlink_process_status(streamer_id, 'enable', False)
+        elif command == 'enable':
+          self.__set_streamlink_process_status(streamer_id, 'enable', True)
+
+        return jsonify(result)
       elif sub == 'install':
         LogicTwitch.install_streamlink()
         self.is_streamlink_installed = True
         return jsonify({})
+      elif sub == 'web_list': # list 탭에서 요청
+        streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|')
+        database = ModelTwitchItem.web_list(req)
+        database['streamer_ids'] = streamer_ids
+        return jsonify(database)
       elif sub == 'db_remove':
-        return jsonify(ModelTwitchItem.delete_by_id(req.form['id']))
+        db_id = req.form['id']
+        is_running_process = [
+          i for i in self.streamlink_process_status 
+          if int(self.streamlink_process_status[i]['db_id']) == int(db_id)
+        ]
+        if len(is_running_process) > 0:
+          # 실행중인 프로세스면 안됨.
+          # 어차피 2분뒤에 다시 다운될건데?
+          return jsonify({'ret': False, 'msg': '다운로드 중인 항목입니다.'})
+        delete_file = req.form['delete_file'] == 'true'
+        if delete_file:
+          download_path = ModelTwitchItem.get_file_by_id(db_id)
+          from framework.common.celery import shutil_task 
+          result = shutil_task.remove(download_path)
+        db_return = ModelTwitchItem.delete_by_id(db_id)
+        return jsonify({'ret': db_return})
     except Exception as e:
       logger.error(f'Exception: {e}')
       logger.error(traceback.format_exc())
+      return jsonify(({'ret': False, 'msg': e}))
 
 
   def setting_save_after(self):
-    streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|') # | 또는 엔터
-    for streamer_id in streamer_ids:
-      self.__init_properties(streamer_id)
+    streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|')
+    before_streamer_ids = [id for id in self.streamlink_plugins]
+    old_streamer_ids = [id for id in before_streamer_ids if id not in streamer_ids]
+    new_streamer_ids = [id for id in streamer_ids if id not in before_streamer_ids]
+    for old_streamer_id in old_streamer_ids:
+      proc = self.streamlink_processes[old_streamer_id]
+      if proc is not None:
+        proc.terminate()
+        proc.wait()
+        ModelTwitchItem.process_done(self.streamlink_process_status[old_streamer_id])
+        logger.debug(proc.returncode)
+      del self.streamlink_processes[old_streamer_id]
+      del self.streamlink_plugins[old_streamer_id]
+      del self.streamlink_process_status[old_streamer_id]
+    for new_streamer_id in new_streamer_ids:
+      self.__init_properties(new_streamer_id)
+
 
 
   def scheduler_function(self):
     try:
       if not self.streamlink_session:
         import streamlink
-        self.streamlink_session = streamlink.Streamlink() 
-      
+        self.streamlink_session = streamlink.Streamlink()
+
       streamlink_quality = P.ModelSetting.get('streamlink_quality')
       streamlink_options = P.ModelSetting.get_list('streamlink_options', '|')
-      streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|') # | 또는 엔터
+      streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|')
 
       download_directory = P.ModelSetting.get('twitch_download_path')
       make_child_directory = P.ModelSetting.get_bool('twitch_auto_make_folder')
       child_directory_name_format = P.ModelSetting.get('twitch_directory_name_format')
       filename_format = P.ModelSetting.get('twitch_filename_format')
 
+
       self.streamlink_plugins = {
         streamer_id: self.streamlink_session.resolve_url(self.twitch_prefix + streamer_id) for streamer_id in streamer_ids
+        if self.streamlink_process_status[streamer_id]['enable'] # status 에서 enable인 상태
       }
+
       for streamer_id in self.streamlink_plugins:
-        # check if running
-        # 이거 set_info 뒤로 빼면 실시간으로 제목, 카테고리 갱신 될 것. 
-        # 근데 안할거임. 트위치에 부담될 것 같음.
-        # 그냥 실시간으로 다운 상황만 갱신할래
+        # 진행중인 프로세스가 있는지 체크
+        # set_info 뒤로 빼면 실시간으로 제목과 카테고리가 갱신될 것으로 생각함
+        # 근데 그거는 트위치 서버에 부담될 것 같고, 이미 첫 정보로 파일 저장했으니
+        # 딱히 필요 없을 거라고 생각함
+        # 동영상 파일에 챕터 추가하는거면 좋겠는데 그거는 서버 사양 많이 탈 듯
         if self.streamlink_processes[streamer_id]:
           continue
-        
+
         self.__set_default_streamlink_process_status(streamer_id)
         self.__set_streamlink_info(streamer_id)
 
         if self.streamlink_process_status[streamer_id]['online']:
+          # 여기서 다운로드 시작
           # set filename
           download_path = os.path.abspath(download_directory)
           if make_child_directory:
             directory_name = self.__parse_title_string(streamer_id, child_directory_name_format)
+            directory_name = '/'.join([self.__replace_unavailable_characters(folder) for folder in directory_name.split('/')])
             download_path = os.path.join(download_path, directory_name)
             if not os.path.isdir(download_path):
               os.makedirs(download_path, exist_ok=True) # mkdir -p
           filename = self.__parse_title_string(streamer_id, filename_format)
+          filename = self.__replace_unavailable_characters(filename)
           download_path = os.path.join(download_path, filename)
           if not download_path.endswith('.mp4'):
             download_path = download_path + '.mp4'
-          # set 
+          # db set
           self.__set_streamlink_process_status(
-            streamer_id, 
-            ['path', 'started_timestamp', 'options', 'quality'], 
-            [download_path, int(datetime.now().strftime("%s%f"))/1000, streamlink_options, streamlink_quality]
+            streamer_id,
+            ['download_path', 'started_time', 'options', 'quality'],
+            [download_path, datetime.now(), streamlink_options, streamlink_quality]
           )
+          # db에 추가
+          db_id = ModelTwitchItem.append(streamer_id, self.streamlink_process_status)
+          self.__set_streamlink_process_status(streamer_id, 'db_id', db_id)
           # spawn child
           self.__spawn_children(
-            streamer_id, 
+            streamer_id,
             download_path,
             quality=streamlink_quality,
             options=streamlink_options
@@ -179,11 +246,12 @@ class LogicTwitch(LogicModuleBase):
       self.is_streamlink_installed = True
     except:
       return False
+    ModelTwitchItem.plugin_load()
     streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|')
     for streamer_id in streamer_ids:
       self.__init_properties(streamer_id)
-    
-  
+
+
 
   def reset_db(self):
     db.session.query(ModelTwitchItem).delete()
@@ -203,7 +271,7 @@ class LogicTwitch(LogicModuleBase):
         commands = [['msg', u'잠시만 기다려주세요.']]
         if CommonUtil.is_docker():
           commands.append(['apk', 'add', '--no-cache', '--virtual', '.build-deps', 'gcc', 'g++', 'make', 'libffi-dev', 'openssl-dev'])
-        
+
         commands.append([app.config['config']['pip'], 'install', '--upgrade', 'pip'])
         commands.append([app.config['config']['pip'], 'install', '--upgrade', 'setuptools'])
         commands.append([app.config['config']['pip'], 'install', 'streamlink'])
@@ -214,14 +282,24 @@ class LogicTwitch(LogicModuleBase):
       t = threading.Thread(target=func, args=())
       t.setDaemon(True)
       t.start()
-    except Exception as e: 
+    except Exception as e:
       logger.error('Exception:%s', e)
       logger.error(traceback.format_exc())
+
+  
+  def __get_converted_streamlink_process_status(self):
+    import copy
+    status = copy.deepcopy(self.streamlink_process_status)
+    for i in status:
+      started_time = status[i]['started_time']
+      if started_time != 0:
+        status[i]['started_time'] = started_time.strftime('%Y-%m-%d %H:%M')
+    return status
 
 
   def __set_streamlink_process_status(self, streamer_id, key, value):
     '''
-    set streamlink_process_status and send socketio_callback('status') 
+    set streamlink_process_status and send socketio_callback('status')
     key and value can be string or list
     '''
     if type(key) == list:
@@ -229,41 +307,42 @@ class LogicTwitch(LogicModuleBase):
         self.streamlink_process_status[streamer_id][key[i]] = value[i]
     else:
       self.streamlink_process_status[streamer_id][key] = value
-    # TODO: socketio 보내는데 자꾸 에러남
-    # 왜그러지
-    try:
-      self.socketio_callback('status', jsonify(self.streamlink_process_status))
-    except Exception as e:
-      logger.error(e)
-      logger.error(traceback.format_exc())
+    self.socketio_callback('update', self.__get_converted_streamlink_process_status())
 
+
+  def __clear_process(self, streamer_id):
+    self.streamlink_plugins[streamer_id] = None
+    self.streamlink_processes[streamer_id] = None
+    self.__set_default_streamlink_process_status(streamer_id)
 
 
   def __set_default_streamlink_process_status(self, streamer_id: str):
     keys = [
-      'online', 'author', 'title', 
-      'category', 'started_timestamp', 'quality', 
-      'options', 'path', 'log', 
-      'status', 'size', 'elapsed_time',
-      'speed',
+      'db_id',
+      'enable', 'online', 'author',
+      'title', 'category', 'started_time',
+      'quality', 'options', 'download_path',
+      'log', 'status', 'size',
+      'elapsed_time', 'speed', 'streams'
     ]
     values = [
-      False, 'No Author', 'No Title', 
-      'No Category', 0, '', 
-      [], '', [], 
-      '', '', '',
-      '',
+      -1,
+      True, False, 'No Author',
+      'No Title', 'No Category', 0,
+      'No Quality', [], 'No Path',
+      [], 'No Status', 'No Size',
+      'No Time', 'No Speed', {}
     ]
     self.__set_streamlink_process_status(
-      streamer_id, 
-      keys, 
+      streamer_id,
+      keys,
       values
     )
 
 
   def __spawn_children(self, streamer_id, filename, quality='best', options: list=[]):
     try:
-      # 지금 output_reader에서는 현재 진행상황이 표시가 안되네 
+      # 지금 output_reader에서는 현재 진행상황이 표시가 안되네
       # progress 표시하는게 버퍼에 쌓이지 않아서 그럼
       # -> bufsize=0, universal_newlines=True으로 해결
       # [download][filename]에서 truncated되는건 streamlink자체 문제임. 사이즈 조절로 해결 안됨.
@@ -273,11 +352,11 @@ class LogicTwitch(LogicModuleBase):
 
       from subprocess import Popen, PIPE, STDOUT
       self.streamlink_processes[streamer_id] = Popen(
-        command, 
-        stdout=PIPE, 
+        command,
+        stdout=PIPE,
         stderr=STDOUT,
         universal_newlines=True,
-        bufsize=0,
+        bufsize=1,
       )
       t = threading.Thread(target=self.__streamlink_process_handler, args=(self.streamlink_processes[streamer_id], streamer_id,))
       t.setDaemon(True)
@@ -288,16 +367,8 @@ class LogicTwitch(LogicModuleBase):
       logger.error(traceback.format_exc())
       return f'spawn failed: {streamer_id}'
 
-  """
-  [cli][info] streamlink is running as root! Be careful!
-  [cli][info] Found matching plugin twitch for URL https://www.twitch.tv/jungtaejune
-  [cli][info] Available streams: audio_only, 160p (worst), 360p, 480p, 720p, 720p60, 1080p60 (best)
-  [cli][info] Opening stream: 1080p60 (hls)
-  [plugins.twitch][info] Will skip ad segments
-  [download][ddol_210905_1530.mp4] Written 23.68 GB (6h43m50s @ 1005.8 KB/s)  
-  """
+
   def __parse_download_log(self, log):
-    # [download][...] filename] Written 23.68 GB (6h43m50s @ 1005.8 KB/s) 
     info = {}
     raw = log.split(']')[-1].strip()
     size_raw, time_speed_raw = raw.split('(')
@@ -305,7 +376,7 @@ class LogicTwitch(LogicModuleBase):
     elapsed_time, speed = time_speed_raw.split('@')
     elapsed_time = elapsed_time.split('(')[-1].strip() # 아마도 '(' 이거 필요 없을 걸
     speed = speed.split(')')[0].strip()
-    
+
     info['size'] = size
     info['elapsed_time'] = elapsed_time
     info['speed'] = speed
@@ -314,23 +385,29 @@ class LogicTwitch(LogicModuleBase):
 
   def __streamlink_process_handler(self, process, streamer_id):
     ''' TODO:
-    다운로드 완료했을 때 정상적으로 정지하는지 확인 안해봤음. 
+    수동으로 정지했을 때는 정상적으로 꺼짐.
+    다운로드 완료했을 때 정상적으로 정지하는지 확인 안해봤음.
     '''
     for line in iter(process.stdout.readline, b''):
       line = str(line).strip()
-      log_splitted = [i[1:] if i.startswith('[') else i.strip() for i in line.split(']')]
-      if log_splitted[0] == 'download':
+      if len(line) < 1:
+        continue
+      # logger.debug(line)
+
+      # [cli] 있는지 체크는 왜 필요하냐: 프로세스 종료될 때 마지막 코드가 한 라인에 나옴
+      if line.startswith('[download]') and '[cli]' not in line:
         info = self.__parse_download_log(line)
         keys = [i for i in info]
         keys.append('status')
         values = [info[i] for i in info]
         values.append(line)
         self.__set_streamlink_process_status(
-          streamer_id, 
+          streamer_id,
           keys,
           values
         )
-      elif len(line) > 0:
+        ModelTwitchItem.update(self.streamlink_process_status[streamer_id])
+      else:
         keys = ['log']
         values = [self.streamlink_process_status[streamer_id]['log']+[line]]
         if 'Opening stream:' in line:
@@ -338,29 +415,58 @@ class LogicTwitch(LogicModuleBase):
           keys.append('quality')
           values.append(quality)
         self.__set_streamlink_process_status(
-          streamer_id, 
-          keys, 
+          streamer_id,
+          keys,
           values
         )
     process.wait()
-    self.streamlink_plugins[streamer_id] = None
-    self.streamlink_processes[streamer_id] = None
-    self.streamlink_process_status[streamer_id] = {}
+    ModelTwitchItem.process_done(self.streamlink_process_status[streamer_id])
+    self.__clear_process(streamer_id)
 
 
   def __set_streamlink_info(self, streamer_id):
-    info = {}
+    '''
+    set self.streamlink_info[streamer_id] about
+    online, author, title, category, streams
+    '''
+    streams = self.__get_streams(streamer_id)
+    if len(streams) < 1:
+      return
+
     plugin = self.streamlink_plugins[streamer_id]
 
     author = plugin.get_author() or 'No Author'
     title = plugin.get_title() or 'No Title'
     category = plugin.get_category() or 'No Category'
 
-    # 웹에서 띄어쓰기가 없거나 하나인데 여러개로 표시되는 문제
+    # 트위치 웹에서 띄어쓰기가 없거나 하나인데, 여기서는 여러개로 표시되는 문제
     title = title.strip() if type(title) == type('') else 'No Title'
     title = re.sub(r'(\s)+', r'\1', title)
 
-    # 파일명에 불가능한 문자. :, \, /, : * ? " < > |
+    self.__set_streamlink_process_status(
+      streamer_id,
+      ['online', 'author', 'title', 'category', 'streams'],
+      [len(streams) > 0, author, title, category, streams]
+    )
+
+
+  def __get_streams(self, streamer_id):
+    streamlink_options = P.ModelSetting.get_list('streamlink_options', '|')
+    command = ['python3', '-m', 'streamlink', '--json'] + streamlink_options
+    command += [f'{self.twitch_prefix}{streamer_id}']
+    import subprocess
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    outs, errs = proc.communicate()
+    outs = json.loads(outs) if outs is not None else ''
+    errs = json.loads(errs) if errs is not None else ''
+    streams = {}
+    if 'streams' in outs:
+      for quality in outs['streams']:
+        streams[quality] = outs['streams'][quality]['url']
+    return streams
+
+
+  def __replace_unavailable_characters(self, source):
     replace_list = {
       ':': '∶',
       '/': '_',
@@ -373,16 +479,9 @@ class LogicTwitch(LogicModuleBase):
       '|': '_',
     }
     for key in replace_list.keys():
-      author = author.replace(key, replace_list[key])
-      title = title.replace(key, replace_list[key])
-      category = category.replace(key, replace_list[key])
-    
-    self.__set_streamlink_process_status(
-      streamer_id, 
-      ['online', 'author', 'title', 'category'], 
-      [len(plugin.streams()) > 0, author, title, category]
-    )
-  
+      source = source.replace(key, replace_list[key])
+    return source
+
 
   def __parse_title_string(self, streamer_id, format_str):
     '''
@@ -399,62 +498,76 @@ class LogicTwitch(LogicModuleBase):
     return result
 
 
-  def __init_properties(self, streamer_id, reset=False):
-    if reset or streamer_id not in self.streamlink_plugins:
+  def __init_properties(self, streamer_id):
+    if streamer_id not in self.streamlink_plugins:
       self.streamlink_plugins[streamer_id] = None
-    if reset or streamer_id not in self.streamlink_processes:
+    if streamer_id not in self.streamlink_processes:
       self.streamlink_processes[streamer_id] = None
-    if reset or streamer_id not in self.streamlink_process_status:
+    if streamer_id not in self.streamlink_process_status:
       self.streamlink_process_status[streamer_id] = {}
       self.__set_default_streamlink_process_status(streamer_id)
 
 
 #########################################################
-# db 
+# db
 #########################################################
 class ModelTwitchItem(db.Model):
+  '''
+  파일 저장에 관한 정보
+  created_time(날짜, 시간),
+  streamer_id, author,
+  title(started), category(started),
+  download_path, 
+  file_size, # 실시간 업데이트
+  elapsed_time, # 실시간 업데이트
+  quality, options
+  '''
   __tablename__ = '{package_name}_twitch_item'.format(package_name=P.package_name)
   __table_args__ = {'mysql_collate': 'utf8_general_ci'}
   __bind_key__ = P.package_name
   id = db.Column(db.Integer, primary_key=True)
   created_time = db.Column(db.DateTime)
-  completed_time = db.Column(db.DateTime)
-  streamer_name = db.Column(db.String)
+  running = db.Column(db.Boolean)
   streamer_id = db.Column(db.String)
+  author = db.Column(db.String)
   title = db.Column(db.String)
+  category = db.Column(db.String)
+  download_path = db.Column(db.String)
+  file_size = db.Column(db.String)
+  elapsed_time = db.Column(db.String)
   quality = db.Column(db.String)
-  filepath = db.Column(db.String)
-  filename = db.Column(db.String)
-  savepath = db.Column(db.String)
-  status = db.Column(db.String)
+  options = db.Column(db.String)
 
   def __init__(self):
-    self.created_time = datetime.now()
-  
+    self.running = True
+
   def __repr__(self):
     return repr(self.as_dict())
-  
+
   def as_dict(self):
     ret = {x.name: getattr(self, x.name) for x in self.__table__.columns}
-    ret['created_time'] = self.created_time.strftime('%Y-%m-%d %H:%M:%S') 
-    ret['completed_time'] = self.completed_time.strftime('%Y-%m-%d %H:%M:%S') if self.completed_time is not None else None
+    ret['created_time'] = self.created_time.strftime('%Y-%m-%d %H:%M')
     return ret
-  
+
   def save(self):
     db.session.add(self)
     db.session.commit()
-  
+
   @classmethod
   def get_by_id(cls, id):
     return db.session.query(cls).filter_by(id=id).first()
-  
+
   @classmethod
   def delete_by_id(cls, id):
     db.session.query(cls).filter_by(id=id).delete()
     db.session.commit()
     return True
   
-  @classmethod  
+  @classmethod
+  def get_file_by_id(cls, id):
+    return cls.get_by_id(id).download_path
+
+  @classmethod
   def web_list(cls, req):
     ret = {}
     page = int(req.form['page']) if 'page' in req.form else 1
@@ -474,29 +587,71 @@ class ModelTwitchItem(db.Model):
   @classmethod
   def make_query(cls, search='', order='desc', option='all'):
     query = db.session.query(cls)
+    conditions = []
+
     if search is not None and search != '':
       if search.find('|') != -1:
         tmp = search.split('|')
-        conditions = []
         for tt in tmp:
           if tt != '':
-            conditions.append(cls.filename.like('%'+tt.strip()+'%') )
-        query = query.filter(or_(*conditions))
+            conditions.append(cls.title.like('%'+tt.strip()+'%') )
+            conditions.append(cls.author.like('%'+tt.strip()+'%') )
+            conditions.append(cls.category.like('%'+tt.strip()+'%') )
       elif search.find(',') != -1:
         tmp = search.split(',')
         for tt in tmp:
           if tt != '':
-            query = query.filter(cls.filename.like('%'+tt.strip()+'%'))
+            conditions.append(cls.title.like('%'+tt.strip()+'%') )
+            conditions.append(cls.author.like('%'+tt.strip()+'%') )
+            conditions.append(cls.category.like('%'+tt.strip()+'%') )
       else:
-        query = query.filter(cls.filename.like('%'+search+'%'))
-    if option == 'completed':
-      query = query.filter(cls.status == 'completed')
+        conditions.append(cls.title.like('%'+search+'%') )
+        conditions.append(cls.author.like('%'+search+'%') )
+        conditions.append(cls.category.like('%'+search+'%') )
+      query = query.filter(or_(*conditions))
+    
+    if option != 'all':
+      query = query.filter(cls.streamer_id == option)
 
     query = query.order_by(desc(cls.id)) if order == 'desc' else query.order_by(cls.id)
-    return query  
+    return query
+
 
   @classmethod
-  def get_list_incompleted(cls):
-    return db.session.query(cls).filter(cls.status != 'completed').all()
+  def plugin_load(cls):
+    db.session.query(cls).update({'running': False})
+    db.session.commit()
+  
+  @classmethod
+  def process_done(cls, streamlink_process_status_streamer_id):
+    cls.update(streamlink_process_status_streamer_id)
+    item = cls.get_by_id(streamlink_process_status_streamer_id['db_id'])
+    item.running = False
+    item.save()
 
 
+  @classmethod
+  def append(cls, streamer_id, streamlink_process_status):
+    item = ModelTwitchItem()
+    item.created_time = streamlink_process_status[streamer_id]['started_time']
+    item.streamer_id = streamer_id
+    item.author = streamlink_process_status[streamer_id]['author']
+    item.title = streamlink_process_status[streamer_id]['title']
+    item.category = streamlink_process_status[streamer_id]['category']
+    item.download_path = streamlink_process_status[streamer_id]['download_path']
+    item.file_size = streamlink_process_status[streamer_id]['size']
+    item.elapsed_time = streamlink_process_status[streamer_id]['elapsed_time']
+    item.quality = streamlink_process_status[streamer_id]['quality']
+    item.options = '\n'.join(streamlink_process_status[streamer_id]['options'])
+    item.save()
+    return item.id
+
+  @classmethod
+  def update(cls, streamlink_process_status_streamer_id):
+    item = cls.get_by_id(streamlink_process_status_streamer_id['db_id'])
+    item.author = streamlink_process_status_streamer_id['author']
+    item.title = streamlink_process_status_streamer_id['title']
+    item.category = streamlink_process_status_streamer_id['category']
+    item.file_size = streamlink_process_status_streamer_id['size']
+    item.elapsed_time = streamlink_process_status_streamer_id['elapsed_time']
+    item.save()
