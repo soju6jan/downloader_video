@@ -49,6 +49,10 @@ $("#search").click(function(e) {
   global_sub_request_search('1');
 });
 
+$("body").on('change', '#option', function(e){
+  global_sub_request_search('1');
+});
+
 $("body").on('click', '#page', function(e){
   e.preventDefault();
   global_sub_request_search($(this).data('page'));

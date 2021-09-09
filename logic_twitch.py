@@ -39,7 +39,7 @@ class LogicTwitch(LogicModuleBase):
     'twitch_auto_start': 'False',
     'twitch_interval': '2',
     'streamlink_quality': 'best',
-    'streamlink_options': '--force-progress\n--twitch-disable-hosting\n--twitch-disable-ads\n--twitch-disable-reruns\n',
+    'streamlink_options': '--twitch-disable-hosting\n--twitch-disable-ads\n--twitch-disable-reruns\n',
   }
   twitch_prefix = 'https://www.twitch.tv/'
   is_streamlink_installed = False
@@ -136,7 +136,7 @@ class LogicTwitch(LogicModuleBase):
         ]
         if len(is_running_process) > 0:
           # 실행중인 프로세스면 안됨.
-          # 어차피 2분뒤에 다시 다운될건데?
+          # 어차피 interval 뒤에 다시 다운될건데?
           return jsonify({'ret': False, 'msg': '다운로드 중인 항목입니다.'})
         delete_file = req.form['delete_file'] == 'true'
         if delete_file:
@@ -152,6 +152,10 @@ class LogicTwitch(LogicModuleBase):
 
 
   def setting_save_after(self):
+    '''
+    아이디 추가하면 스케줄링 한번 돌리려고 했는데
+    그러면 설정 저장에서 로딩생기네 
+    '''
     streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|')
     before_streamer_ids = [id for id in self.streamlink_plugins]
     old_streamer_ids = [id for id in before_streamer_ids if id not in streamer_ids]
@@ -172,7 +176,7 @@ class LogicTwitch(LogicModuleBase):
 
   # TODO: 
   # 임시 디렉토리 설정 할까 말까
-  #
+  # rclone 마운트에 직접 다운했을 때 문제 생기면 추가하자
   def scheduler_function(self):
     try:
       if not self.streamlink_session:
@@ -231,6 +235,7 @@ class LogicTwitch(LogicModuleBase):
           db_id = ModelTwitchItem.append(streamer_id, self.streamlink_process_status)
           self.__set_streamlink_process_status(streamer_id, 'db_id', db_id)
           # spawn child
+          logger.debug(f'[download][{streamer_id}][{self.streamlink_process_status[streamer_id]["category"]}] {self.streamlink_process_status[streamer_id]["title"]}')
           self.__spawn_children(
             streamer_id,
             download_path,
@@ -348,7 +353,7 @@ class LogicTwitch(LogicModuleBase):
       # progress 표시하는게 버퍼에 쌓이지 않아서 그럼
       # -> bufsize=0, universal_newlines=True으로 해결
       # [download][filename]에서 truncated되는건 streamlink자체 문제임. 사이즈 조절로 해결 안됨.
-      command = ['python3', '-m', 'streamlink', '--output', filename]
+      command = ['python3', '-m', 'streamlink', '--force-progress', '--output', filename]
       command = command + options
       command = command + [f'{self.twitch_prefix}{streamer_id}', quality]
 
@@ -363,7 +368,7 @@ class LogicTwitch(LogicModuleBase):
       t = threading.Thread(target=self.__streamlink_process_handler, args=(self.streamlink_processes[streamer_id], streamer_id,))
       t.setDaemon(True)
       t.start()
-      return f'spwan success: {streamer_id}'
+      return f'spawn success: {streamer_id}'
     except Exception as e:
       logger.error(f'Exception: {e}')
       logger.error(traceback.format_exc())
@@ -454,7 +459,7 @@ class LogicTwitch(LogicModuleBase):
 
   def __get_streams(self, streamer_id):
     streamlink_options = P.ModelSetting.get_list('streamlink_options', '|')
-    command = ['python3', '-m', 'streamlink', '--json'] + streamlink_options
+    command = ['python3', '-m', 'streamlink', '--json', '--force-progress'] + streamlink_options
     command += [f'{self.twitch_prefix}{streamer_id}']
     import subprocess
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)

@@ -8,8 +8,8 @@
   {{ macros.m_row_start('0') }}
   {{ macros.m_col(2,  macros.m_strong('Streamer')) }}
   {{ macros.m_col(2,  macros.m_strong('Started')) }}
-  {{ macros.m_col(2,  macros.m_strong('Title')) }}
-  {{ macros.m_col(2,  macros.m_strong('Category')) }}
+  {{ macros.m_col(3,  macros.m_strong('StreamInfo')) }}
+  {{ macros.m_col(1,  macros.m_strong('Size')) }}
   {{ macros.m_col(1,  macros.m_strong('Elapsed')) }}
   {{ macros.m_col(1,  macros.m_strong('Speed')) }}
   {{ macros.m_col(2,  macros.m_strong('Detail')) }}
@@ -21,12 +21,16 @@
 <style>
   .online{
     background-color: lightblue;
-    border-radius: 1em;
+    border-radius: 0.5em;
+    margin-left: 0.1em;
+    margin-right: 0.1em;
   }
 
   .offline{
     background-color: lightpink;
-    border-radius: 1em;
+    border-radius: 0.5em;
+    margin-left: 0.1em;
+    margin-right: 0.1em;
   }
 </style>
 
@@ -77,30 +81,45 @@ function m_row_start_id(id, online) {
   return str;
 }
 
+function streamer_id_link(author, streamer_id)
+{
+  if(author === 'No Author')
+  {
+    return `<a href='https://www.twitch.tv/${streamer_id}' target="_blank" style="color: black;">${streamer_id}</a>`;
+  }
+  return `<a href='https://www.twitch.tv/${streamer_id}' target="_blank" style="color: black;">${author}<br>(${streamer_id})</a>`
+}
+
+function category_link(category)
+{
+  if(category === 'No Category')
+  {
+    return category;
+  }
+  return `<a href='https://www.twitch.tv/directory/game/${category}' target="_blank" style="color: black;">${category}</a>`
+}
+
 function render_list(streamlink_process_status)
 {
   str = '';
   for (let streamer_id in streamlink_process_status)
-  {
-    g_data = streamlink_process_status;
-    
-    let name = streamlink_process_status[streamer_id].author !== "No Author" ? `${streamlink_process_status[streamer_id].author} (${streamer_id})` : streamer_id;
-    let streamer = `<div id=${streamer_id}_streamer>${name}</div>`
-    
-    let title = `<div id=${streamer_id}_title>${streamlink_process_status[streamer_id].title}</div>`;
-    let category = `<div id=${streamer_id}_category>${streamlink_process_status[streamer_id].category}</div>`;
-
+  {    
+    let name = streamer_id_link(streamlink_process_status[streamer_id].author, streamer_id);
     let datetime = streamlink_process_status[streamer_id].started_time;
+
+    let streamer = `<div id=${streamer_id}_streamer>${name}</div>`
+    let stream_info = `<div id=${streamer_id}_stream_info>${streamlink_process_status[streamer_id].title}<br>${category_link(streamlink_process_status[streamer_id].category)}</div>`
     let started_time = `<div id=${streamer_id}_started_time>${datetime || 'Offline'}</div>`;
     let elapsed_time = `<div id=${streamer_id}_elapsed_time>${streamlink_process_status[streamer_id].elapsed_time}</div>`;
     let speed = `<div id=${streamer_id}_speed>${streamlink_process_status[streamer_id].speed}</div>`
+    let size = `<div id=${streamer_id}_size>${streamlink_process_status[streamer_id].size}</div>`
 
     str += m_row_start_id(streamer_id, datetime !== 0);
     str += m_col(2, streamer);
     str += m_col(2, started_time);
-    str += m_col(2, title);
-    str += m_col(2, category);
-    str += m_col(1, elapsed_time),
+    str += m_col(3, stream_info);
+    str += m_col(1, size);
+    str += m_col(1, elapsed_time);
     str += m_col(1, speed);
     let detail_button = m_button('detail_btn', '자세히', [{
       'key':'id', 
@@ -131,19 +150,19 @@ function render_update(data)
   {
     const status_div = document.getElementById(streamer_id);
     const div_streamer = document.getElementById(`${streamer_id}_streamer`)
-    const div_title = document.getElementById(`${streamer_id}_title`)
-    const div_category = document.getElementById(`${streamer_id}_category`)
+    const div_stream_info = document.getElementById(`${streamer_id}_stream_info`)
     const div_started_time = document.getElementById(`${streamer_id}_started_time`)
     const div_elapsed_time = document.getElementById(`${streamer_id}_elapsed_time`)
     const div_speed = document.getElementById(`${streamer_id}_speed`);
+    const div_size = document.getElementById(`${streamer_id}_size`);
 
 
-    div_streamer.innerText = data[streamer_id].author !== "No Author" ? `${data[streamer_id].author} (${streamer_id})` : streamer_id;
-    div_title.innerText = data[streamer_id].title;
-    div_category.innerText = data[streamer_id].category;
+    div_streamer.innerHTML = streamer_id_link(data[streamer_id].author, streamer_id)
+    div_stream_info.innerHTML = `${data[streamer_id].title}<br>${category_link(data[streamer_id].category)}`;
     div_started_time.innerText = data[streamer_id].started_time || 'Offline';
     div_elapsed_time.innerText = data[streamer_id].elapsed_time;
     div_speed.innerText = data[streamer_id].speed;
+    div_size.innerText = data[streamer_id].size;
 
     if(data[streamer_id].started_time)
     {
