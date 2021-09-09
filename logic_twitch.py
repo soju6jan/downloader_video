@@ -124,9 +124,9 @@ class LogicTwitch(LogicModuleBase):
         self.is_streamlink_installed = True
         return jsonify({})
       elif sub == 'web_list': # list 탭에서 요청
-        streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|')
+        # streamer_ids = P.ModelSetting.get_list('twitch_streamer_ids', '|')
         database = ModelTwitchItem.web_list(req)
-        database['streamer_ids'] = streamer_ids
+        database['streamer_ids'] = ModelTwitchItem.get_streamer_ids()
         return jsonify(database)
       elif sub == 'db_remove':
         db_id = req.form['id']
@@ -645,6 +645,10 @@ class ModelTwitchItem(db.Model):
     item = cls.get_by_id(streamlink_process_status_streamer_id['db_id'])
     item.running = False
     item.save()
+  
+  @classmethod
+  def get_streamer_ids(cls):
+    return [item.streamer_id for item in db.session.query(cls.streamer_id).distinct()]
 
 
   @classmethod
