@@ -293,14 +293,21 @@ class LogicTwitch(LogicModuleBase):
       logger.error('Exception:%s', e)
       logger.error(traceback.format_exc())
 
+
+  def __get_converted_streamlink_process_status_streamer_id(self, streamer_id):
+    import copy
+    status_streamer_id = copy.deepcopy(self.streamlink_process_status[streamer_id])
+    started_time = status_streamer_id['started_time']
+    if started_time != 0:
+      status_streamer_id['started_time'] = started_time.strftime('%Y-%m-%d %H:%M')
+    return {'streamer_id': streamer_id, 'status': status_streamer_id}
   
+
   def __get_converted_streamlink_process_status(self):
     import copy
-    status = copy.deepcopy(self.streamlink_process_status)
-    for i in status:
-      started_time = status[i]['started_time']
-      if started_time != 0:
-        status[i]['started_time'] = started_time.strftime('%Y-%m-%d %H:%M')
+    status = {}
+    for streamer_id in self.streamlink_process_status:
+      status[streamer_id] = self.__get_converted_streamlink_process_status_streamer_id(streamer_id)['status']
     return status
 
 
@@ -314,7 +321,8 @@ class LogicTwitch(LogicModuleBase):
         self.streamlink_process_status[streamer_id][key[i]] = value[i]
     else:
       self.streamlink_process_status[streamer_id][key] = value
-    self.socketio_callback('update', self.__get_converted_streamlink_process_status())
+    # status 전부 보내면 비효율적이니까 하나씩 보냄
+    self.socketio_callback('update', self.__get_converted_streamlink_process_status_streamer_id(streamer_id))
 
 
   def __clear_process(self, streamer_id):

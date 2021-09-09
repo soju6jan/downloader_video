@@ -146,34 +146,34 @@ function render_list(streamlink_process_status)
 
 function render_update(data)
 {
-  for(let streamer_id in data)
+  const streamer_id = data.streamer_id;
+  const status = data.status;
+
+  const status_div = document.getElementById(streamer_id);
+  const div_streamer = document.getElementById(`${streamer_id}_streamer`)
+  const div_stream_info = document.getElementById(`${streamer_id}_stream_info`)
+  const div_started_time = document.getElementById(`${streamer_id}_started_time`)
+  const div_elapsed_time = document.getElementById(`${streamer_id}_elapsed_time`)
+  const div_speed = document.getElementById(`${streamer_id}_speed`);
+  const div_size = document.getElementById(`${streamer_id}_size`);
+
+
+  div_streamer.innerHTML = streamer_id_link(status.author, streamer_id)
+  div_stream_info.innerHTML = `${status.title}<br>${category_link(status.category)}`;
+  div_started_time.innerText = status.started_time || 'Offline';
+  div_elapsed_time.innerText = status.elapsed_time;
+  div_speed.innerText = status.speed;
+  div_size.innerText = status.size;
+
+  if(status.started_time)
   {
-    const status_div = document.getElementById(streamer_id);
-    const div_streamer = document.getElementById(`${streamer_id}_streamer`)
-    const div_stream_info = document.getElementById(`${streamer_id}_stream_info`)
-    const div_started_time = document.getElementById(`${streamer_id}_started_time`)
-    const div_elapsed_time = document.getElementById(`${streamer_id}_elapsed_time`)
-    const div_speed = document.getElementById(`${streamer_id}_speed`);
-    const div_size = document.getElementById(`${streamer_id}_size`);
-
-
-    div_streamer.innerHTML = streamer_id_link(data[streamer_id].author, streamer_id)
-    div_stream_info.innerHTML = `${data[streamer_id].title}<br>${category_link(data[streamer_id].category)}`;
-    div_started_time.innerText = data[streamer_id].started_time || 'Offline';
-    div_elapsed_time.innerText = data[streamer_id].elapsed_time;
-    div_speed.innerText = data[streamer_id].speed;
-    div_size.innerText = data[streamer_id].size;
-
-    if(data[streamer_id].started_time)
-    {
-      status_div.classList.remove('offline');
-      status_div.classList.add('online');
-    }
-    else
-    {
-      status_div.classList.remove('online');
-      status_div.classList.add('offline');
-    }
+    status_div.classList.remove('offline');
+    status_div.classList.add('online');
+  }
+  else
+  {
+    status_div.classList.remove('online');
+    status_div.classList.add('offline');
   }
 }
 
