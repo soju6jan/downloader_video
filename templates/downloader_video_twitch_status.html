@@ -33,6 +33,47 @@
     margin-right: 0.1em;
   }
 
+  .disable{
+    animation: dimmer forwards 0.3s;
+    -webkit-animation: dimmer forwards 0.3s;
+    
+  }
+
+  .enable{
+    animation: brighter forwards 0.3s;
+    -webkit-animation: brighter forwards 0.3s;
+  }
+
+  @keyframes brighter{
+    from{
+      filter: brightness(0.7);
+    }
+    100%{
+      filter: brightness(1);
+    }
+  }
+
+  @-webkit-keyframes brighter{
+    from{
+      filter: -webkit-brightness(0.7);
+    }
+    100%{
+      filter: -webkit-brightness(1);
+    }
+  }
+
+  @keyframes dimmer {
+    100%{
+      filter: brightness(0.7);
+    }
+  }
+
+  @-webkit-keyframes dimmer {
+    100%{
+      filter: -webkit-brightness(0.7);
+    }
+  }
+
 </style>
 
 <script type="text/javascript">
@@ -76,9 +117,9 @@ function on_start() {
   });
 }
 
-function m_row_start_id(id, online) {
+function m_row_start_id(id, online, enable) {
   let str = m_row_start();
-  str = str.replace(`class="row"`, `id=${id} class="row ${online ? 'online' : 'offline'}"`);
+  str = str.replace(`class="row"`, `id=${id} class="row ${online ? 'online' : 'offline'} ${enable ? '' : 'disable'}"`);
   return str;
 }
 
@@ -107,6 +148,7 @@ function render_list(streamlink_process_status)
   {    
     let name = streamer_id_link(streamlink_process_status[streamer_id].author, streamer_id);
     let datetime = streamlink_process_status[streamer_id].started_time;
+    let enable = streamlink_process_status[streamer_id].enable;
 
     let streamer = `<div id=${streamer_id}_streamer>${name}</div>`
     let stream_info = `<div id=${streamer_id}_stream_info>${streamlink_process_status[streamer_id].title}<br>${category_link(streamlink_process_status[streamer_id].category)}</div>`
@@ -115,7 +157,7 @@ function render_list(streamlink_process_status)
     let speed = `<div id=${streamer_id}_speed class="status_speed">${streamlink_process_status[streamer_id].speed}</div>`
     let size = `<div id=${streamer_id}_size>${streamlink_process_status[streamer_id].size}</div>`
 
-    str += m_row_start_id(streamer_id, datetime !== 0);
+    str += m_row_start_id(streamer_id, datetime, enable);
     str += m_col(2, streamer);
     str += m_col(2, started_time);
     str += m_col(3, stream_info);
@@ -126,14 +168,14 @@ function render_list(streamlink_process_status)
       'key':'id', 
       'value': streamer_id,
     }]);
-    let stop_button = m_button('stop_btn', streamlink_process_status[streamer_id].enable == true ? '중지' : '시작', [
+    let stop_button = m_button('stop_btn', enable ? '중지' : '시작', [
       {
         'key': 'id',
         'value': streamer_id,
       },
       {
         'key': 'command',
-        'value': streamlink_process_status[streamer_id].enable == true ? 'disable' : 'enable'
+        'value': enable ? 'disable' : 'enable'
       }
     ])
     button_group = m_button_group_from_list([detail_button, stop_button])
@@ -211,13 +253,28 @@ $("body").on('click', '#stop_btn', function(e){
     },
     dataType: 'json',
     success: (ret) => {
-      const returncode_log = ret.returncode == '-1' ? '' : `리턴 코드: ${ret.returncode}<br>`
       $.notify(
-        `<strong>${streamer}<br>이전 상태: ${ret.previous_status}  ${returncode_log}다운로드활성화: ${command}${command === 'disable' ? '<br>재시작 전까지 이 항목은 자동으로 시작되지 않습니다.' : ''}</strong>`,
-        {type: 'success'}
+        `<strong>${streamer}<br>이전 상태: ${ret.previous_status} 다운로드활성화: ${command}${command === 'disable' ? '<br>재시작 전까지 이 항목은 자동으로 시작되지 않습니다.' : ''}</strong>`,
+        {
+          type: 'success', 
+          delay: 1000,
+          timer: 500,
+        },
       );
       $(this).text(next_text[command]);
       $(this).data('command', next_status[command]);
+
+      const status_div = document.getElementById(streamer_id);
+      if(command === 'enable')
+      {
+        status_div.classList.remove('disable');
+        status_div.classList.add('enable');
+      }
+      else
+      {
+        status_div.classList.remove('enable');
+        status_div.classList.add('disable');
+      }
     }
   })
 })
