@@ -46,7 +46,7 @@
 
   @keyframes brighter{
     from{
-      filter: brightness(0.7);
+      filter: brightness(0.5);
     }
     100%{
       filter: brightness(1);
@@ -55,7 +55,7 @@
 
   @-webkit-keyframes brighter{
     from{
-      filter: -webkit-brightness(0.7);
+      filter: -webkit-brightness(0.5);
     }
     100%{
       filter: -webkit-brightness(1);
@@ -64,13 +64,13 @@
 
   @keyframes dimmer {
     100%{
-      filter: brightness(0.7);
+      filter: brightness(0.5);
     }
   }
 
   @-webkit-keyframes dimmer {
     100%{
-      filter: -webkit-brightness(0.7);
+      filter: -webkit-brightness(0.5);
     }
   }
 
@@ -257,7 +257,7 @@ $("body").on('click', '#stop_btn', function(e){
         `<strong>${streamer}<br>이전 상태: ${ret.previous_status} 다운로드활성화: ${command}${command === 'disable' ? '<br>재시작 전까지 이 항목은 자동으로 시작되지 않습니다.' : ''}</strong>`,
         {
           type: 'success', 
-          delay: 1000,
+          delay: 2000,
           timer: 500,
         },
       );

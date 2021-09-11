@@ -73,7 +73,8 @@ $("body").on('click', '#json_btn', function(e){
   for (i in current_data.list) {
     if (current_data.list[i].id == id) {
       json_data = JSON.parse(JSON.stringify(current_data.list[i])) // deep copy
-      json_data.logs = json_data.logs.split('\n')
+      json_data.download_filenames = json_data.download_filenames.split('\n');
+      json_data.options = json_data.options.split('\n'); 
       m_modal(json_data)
     }
   }

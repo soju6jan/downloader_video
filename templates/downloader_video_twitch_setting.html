@@ -17,15 +17,66 @@
   {{ macros.m_tab_content_start('normal', true) }}
     {{ macros.info_text_and_buttons('is_streamlink_installed', 'steamlink 설치상태', [['streamlink_install_btn', '설치']], value=arg['is_streamlink_installed'], desc=['도커 지원.', '그외 환경에서는 pip 명령만 보내나 컴파일이 필요한 모듈이 있어 설치가 실패할 수도 있습니다.', '이 경우는 각자 알아서 설치하시기 바랍니다.']) }}
     <div class="streamlink_dependency" >
-      {{ macros.setting_input_text('streamlink_quality', 'streamlink 화질', col='3', value=arg['streamlink_quality'], desc=['best, worst, audio_only 등']) }}
-      {{ macros.setting_input_textarea('streamlink_options', 'streamlink-cli 옵션', row='5', value=arg['streamlink_options'], desc=['https://streamlink.github.io/cli.html#twitch', '구분자 | 또는 엔터', '--twitch-disable-hosting 이건 있는게 좋습니다.']) }}
+      {{ macros.setting_input_text('streamlink_quality', 'streamlink 화질', col='3', value=arg['streamlink_quality'], desc=['best, worst, audio_only 등', 'ex) 1080p60,best :1080p60이 있으면 그걸 다운하고 없으면 best를 선택함.']) }}
       {{ macros.setting_input_text_and_buttons('twitch_download_path', '저장 폴더',[['select_twitch_download_btn', '경로 선택']], value=arg['twitch_download_path'], desc=['방송 스트림이 저장될 폴더입니다.', '남은 용량이 충분한지 확인하세요.']) }}
       {{ macros.setting_checkbox('twitch_auto_make_folder', '하위 폴더 생성', value=arg['twitch_auto_make_folder'], desc='스트리머 이름으로 폴더를 생성하고 폴더 안에 다운로드합니다.') }}
       <div id="twitch_auto_make_folder_div" class="collapse">
         {{ macros.setting_input_text('twitch_directory_name_format', '폴더명 포맷', col='6', value=arg['twitch_directory_name_format'], desc=['지원 키워드: {author}, {title}, {category}, {streamer_id}, %Y%m 등의 날짜 포맷', 'title과 category는 다운 시작할 시점 기준.', '하위 디렉토리는 /으로 구분']) }}
       </div>
-      {{ macros.setting_input_text('twitch_filename_format', '파일명 포맷', col='6', value=arg['twitch_filename_format'], desc=['지원 키워드: {author}, {title}, {category}, {streamer_id}, %d%H%M 등의 날짜 포맷', 'title과 category는 다운 시작할 시점 기준.']) }}
-
+      {{ macros.setting_input_text(
+        'twitch_filename_format', 
+        '파일명 포맷', 
+        col='7', 
+        value=arg['twitch_filename_format'], 
+        desc=['
+          지원 키워드: {author}, {title}, {category}, {streamer_id}, {part_number}, %d%H%M 등의 날짜 포맷', 
+          'title과 category는 다운 시작할 시점 기준.',
+          '파일 확장자는 넣지 마세요.',
+        ]) }}
+      {{ macros.setting_checkbox('twitch_file_split_by_size', '파일 분할', value=arg['twitch_file_split_by_size'], desc='각 파일의 최대 크기를 지정합니다.') }}
+      <div id="twitch_file_split_by_size_div" class="collapse">
+        {{ macros.setting_input_text(
+          'twitch_file_size_limit', 
+          '기준 사이즈', 
+          value=arg['twitch_file_size_limit'], 
+          col=3,
+          desc=[
+            '저장된 파일이 이 크기를 넘으면 새로 다운로드합니다.', 
+            '파일 명 옵션 중 {part_number} 부분에 1부터 증가하며 저장됩니다.',
+            '{part_number}를 지정하지 않으면 파일명 뒤에 -part{part_number}를 붙입니다.',
+            '단위 GB, MB'
+          ]) }}
+      </div>
+      {{ macros.setting_checkbox('streamlink_options', '상세 옵션 보이기', value='False', desc='') }}
+      <div id="streamlink_options_div" class="collapse">
+        {{ macros.setting_input_int('streamlink_hls_live_edge', '--hls_live_edge', value=arg['streamlink_hls_live_edge'], min=1, max=3) }}
+        {{ macros.setting_checkbox('streamlink_twitch_disable_ads', '--twitch-disable-ads', value=arg['streamlink_twitch_disable_ads']) }}
+        {{ macros.setting_checkbox('streamlink_twitch_disable_hosting', '--twitch-disable-hosting', value=arg['streamlink_twitch_disable_hosting']) }}
+        {{ macros.setting_checkbox('streamlink_twitch_disable_reruns', '--twitch-disable-reruns', value=arg['streamlink_twitch_disable_reruns']) }}
+        {{ macros.setting_checkbox('streamlink_twitch_low_latency', '--twitch-low-latency', value=arg['streamlink_twitch_low_latency']) }}
+        {{ macros.setting_input_text('streamlink_chunk_size', '다운로드 chunk size', col='4', value=arg['streamlink_chunk_size']) }}
+      </div>
+      <div class="row justify-content-center">
+        <div class="col-8">
+          <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <strong>참고: rclone 마운트 경로에 저장할 경우</strong></br>
+            <hr style="width: 100%; margin:0px; background-color:#808080;" class="my-2">
+            <div class="row">
+              <div class="col">
+                rclone vfs-cache-max-size 값에 관계 없이 <br>
+                rclone vfs cache 는 현재 다운로드 중인 파일의 크기에 따라 커집니다.<br>
+                로컬에 충분한 공간을 확보하고 사용하세요.<br>
+                공간 확보가 어려우면 파일 분할 옵션을 이용하세요.<br>
+                <br>
+                플러그인 사용에 따른 책임은 개발자가 아닌 사용자 본인에게 있습니다.<br>
+              </div>
+            </div>
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   {{ macros.m_tab_content_end() }}
 
@@ -78,6 +129,8 @@ const is_streamlink_installed = "{{ arg['is_streamlink_installed'] }}" === "Inst
 
 $(document).ready(function(){
   use_collapse('twitch_auto_make_folder');
+  use_collapse('twitch_file_split_by_size');
+  use_collapse('streamlink_options');
   if(!is_streamlink_installed)
   {
     $('.streamlink_dependency').each((_, e) => e.setAttribute('style', 'display: none;'))
@@ -96,7 +149,15 @@ $("body").on('click', '#select_twitch_download_btn', function(e){
 
 $('#twitch_auto_make_folder').change(function() {
   use_collapse('twitch_auto_make_folder');
-});
+}); 
+
+$('#twitch_file_split_by_size').change(()=>{
+  use_collapse('twitch_file_split_by_size');
+})
+
+$('#streamlink_options').change(()=>{
+  use_collapse('streamlink_options');
+})
 
 $("body").on('click', '#streamlink_install_btn', function(e){
   e.preventDefault();
