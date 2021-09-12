@@ -154,6 +154,9 @@ class LogicTwitch(LogicModuleBase):
 
 
   def setting_save_after(self):
+    if self.streamlink_session is None:
+      import streamlink
+      self.streamlink_session = streamlink.Streamlink()
     streamer_ids = [id for id in P.ModelSetting.get_list('twitch_streamer_ids', '|') if not id.startswith('#')]
     before_streamer_ids = [id for id in self.streamlink_plugins]
     old_streamer_ids = [id for id in before_streamer_ids if id not in streamer_ids]
