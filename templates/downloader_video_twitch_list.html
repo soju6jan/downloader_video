@@ -74,6 +74,7 @@ $("body").on('click', '#json_btn', function(e){
     if (current_data.list[i].id == id) {
       json_data = JSON.parse(JSON.stringify(current_data.list[i])) // deep copy
       json_data.download_filenames = json_data.download_filenames.split('\n');
+      json_data.file_size = formatBytes(json_data.file_size);
       json_data.options = json_data.options.split('\n'); 
       m_modal(json_data)
     }
@@ -135,6 +136,19 @@ function delete_btn_callback(data) {
   }
 }
 
+// https://stackoverflow.com/a/18650828
+function formatBytes(bytes, decimals = 1) {
+  if (bytes === 0) return '0 Bytes';
+
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
 
 function make_list(data) {
   let str = '';
@@ -147,7 +161,7 @@ function make_list(data) {
     tmp = `${data[i].title}<br>${data[i].category}<br>화질: ${data[i].quality}`
     str += m_col(3, tmp)
 
-    tmp = `크기: ${data[i].file_size}, 경과: ${data[i].elapsed_time} ${data[i].running ? '(다운로드 중)' : '(완료)'}`
+    tmp = `크기: ${formatBytes(data[i].file_size)}, 경과: ${data[i].elapsed_time} ${data[i].running ? '(다운로드 중)' : '(완료)'}`
     const search_streamer_btn = m_button('search_streamer_btn', '스트리머검색', [{'key': 'streamer_id', 'value': data[i].streamer_id}]);
     const search_category_btn = m_button('search_category_btn', '카테고리검색', [{'key': 'category', 'value': data[i].category}]);
     const json_btn = m_button('json_btn', 'JSON', [{'key': 'db_id', 'value': data[i].id}]);

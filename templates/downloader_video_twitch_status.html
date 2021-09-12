@@ -117,6 +117,19 @@ function on_start() {
   });
 }
 
+// https://stackoverflow.com/a/18650828
+function formatBytes(bytes, decimals = 1) {
+  if (bytes === 0) return '0 Bytes';
+
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
 function m_row_start_id(id, online, enable) {
   let str = m_row_start();
   str = str.replace(`class="row"`, `id=${id} class="row ${online ? 'online' : 'offline'} ${enable ? '' : 'disable'}"`);
@@ -155,7 +168,7 @@ function render_list(streamlink_process_status)
     let started_time = `<div id=${streamer_id}_started_time>${datetime || 'Offline'}</div>`;
     let elapsed_time = `<div id=${streamer_id}_elapsed_time>${streamlink_process_status[streamer_id].elapsed_time}</div>`;
     let speed = `<div id=${streamer_id}_speed class="status_speed">${streamlink_process_status[streamer_id].speed}</div>`
-    let size = `<div id=${streamer_id}_size>${streamlink_process_status[streamer_id].size}</div>`
+    let size = `<div id=${streamer_id}_size>${formatBytes(streamlink_process_status[streamer_id].size)}</div>`
 
     str += m_row_start_id(streamer_id, datetime, enable);
     str += m_col(2, streamer);
@@ -181,7 +194,7 @@ function render_list(streamlink_process_status)
     button_group = m_button_group_from_list([detail_button, stop_button])
     str += m_col(2, button_group)
     str += m_row_end()
-    if (streamer_id != streamlink_process_status[streamlink_process_status.length - 1]) str += m_hr(0);
+    // if (streamer_id != streamlink_process_status[streamlink_process_status.length - 1]) str += m_hr(0);
   }
   document.getElementById("status_list_div").innerHTML = str;
 }
@@ -206,7 +219,7 @@ function render_update(data)
   div_started_time.innerText = status.started_time || 'Offline';
   div_elapsed_time.innerText = status.elapsed_time;
   div_speed.innerText = status.speed;
-  div_size.innerText = status.size;
+  div_size.innerText = formatBytes(status.size);
 
   if(status.started_time)
   {

@@ -36,7 +36,7 @@ class LogicTwitch(LogicModuleBase):
   db_default = {
     'twitch_db_version': '1',
     'twitch_download_path': os.path.join(path_data, P.package_name, 'twitch'),
-    'twitch_filename_format': '[%Y-%m-%d %H:%M][{category}] {title}-part{part_number}',
+    'twitch_filename_format': '[%Y-%m-%d %H:%M][{category}] {title} part{part_number}',
     'twitch_directory_name_format': '{author} ({streamer_id})/%Y-%m',
     'twitch_file_split_by_size': 'True',
     'twitch_file_size_limit': '2 GB',
@@ -77,7 +77,7 @@ class LogicTwitch(LogicModuleBase):
     'do_split': bool, 
     'size_limit': '',
     'current_part_number': 1,
-    'size': '',
+    'size': 0,
     'elapsed_time': '',
     'speed': '',
     'streams': {},
@@ -286,10 +286,9 @@ class LogicTwitch(LogicModuleBase):
     options = self._get_options()
     for tup in options:
       if len(tup) == 2:
-        result += tup[0] + ' True' if tup[1] else ' False'
+        result += tup[0] + ' ' + str(tup[1]) + '\n'
       else:
-        result += tup[0] + ' ' + tup[1] + ' True' if tup[2] else ' False'
-      result += '\n'
+        result += tup[0] + ' ' + tup[1] + ' ' + str(tup[2]) + '\n'
     return result
 
 
@@ -391,7 +390,16 @@ class LogicTwitch(LogicModuleBase):
 
     size_limit = self._byte_from_unit(size_limit)
 
-    stream = self.streamlink_plugins[streamer_id].streams()[quality]
+    streams = self.streamlink_plugins[streamer_id].streams()
+    stream = streams[quality]
+    if quality in ['best', 'worst']: # convert best -> 1080p60, worst -> 160p
+      quality = [
+        _quality for _quality in streams
+        if streams[quality] == streams[_quality] and \
+          quality != _quality
+      ][0]
+      self._set_download_status(streamer_id, {'quality': quality})
+
     opened_stream = stream.open()
 
     started_time = time()
@@ -421,6 +429,7 @@ class LogicTwitch(LogicModuleBase):
               target.write(opened_stream.read(chunk_size))
               downloaded_bytes += chunk_size
             except Exception as e: # opened_stream.closed 로 판별이 안됨. 
+              logger.error(f'{e}')
               logger.debug(f'streamlink cannot read chunk OR sjva cannot write birnay file')
               stop_flag = True
               break
@@ -431,7 +440,7 @@ class LogicTwitch(LogicModuleBase):
               byte_diff = current_bytes_for_status - before_bytes_for_status
               speed = self._get_speed_from_time(time_diff, byte_diff)
               self._set_download_status(streamer_id, {
-                'size': self._unit_from_byte(downloaded_bytes),
+                'size': downloaded_bytes,
                 'elapsed_time': self._get_timestr_from_seconds(time() - started_time),
                 'speed': speed,
               })
@@ -455,6 +464,7 @@ class LogicTwitch(LogicModuleBase):
             target.write(opened_stream.read(chunk_size))
             downloaded_bytes += chunk_size
           except Exception as e:
+            logger.error(f'{e}')
             logger.debug(f'streamlink cannot read chunk OR sjva cannot write birnay file')
             break
           current_time_for_status = time()
@@ -464,7 +474,7 @@ class LogicTwitch(LogicModuleBase):
             byte_diff = current_bytes_for_status - before_bytes_for_status
             speed = self._get_speed_from_time(time_diff, byte_diff)
             self._set_download_status(streamer_id, {
-              'size': self._unit_from_byte(downloaded_bytes),
+              'size': downloaded_bytes,
               'elapsed_time': self._get_timestr_from_seconds(time() - started_time),
               'speed': speed,
             })
@@ -472,12 +482,14 @@ class LogicTwitch(LogicModuleBase):
             before_time_for_status = current_time_for_status
             before_bytes_for_status = current_bytes_for_status
         target.close()
-  
-    if os.path.exists(filepath) and os.path.getsize(filepath) < 512 * 1024: # delete empty file when cancelled
-      shutil_task.remove(filepath)
-    
+   
     opened_stream.close()
     ModelTwitchItem.process_done(self.download_status[streamer_id])
+    if os.path.exists(filepath) and os.path.getsize(filepath) < 512 * 1024: # delete last empty file when cancelled
+      shutil_task.remove(filepath)
+      self._set_download_status(streamer_id, {'download_filenames': self.download_status[streamer_id]['download_filenames'][:-1]})
+      if len(self.download_status[streamer_id]['download_filenames']) == 0:
+        ModelTwitchItem.delete_by_id(self.download_status[streamer_id]['db_id'])
     self._clear_properties(streamer_id)
     logger.debug(f'{streamer_id} stream ends.')
     if streamer_id not in [id for id in P.ModelSetting.get_list('twitch_streamer_ids', '|') if not id.startswith('#')]:
@@ -485,6 +497,7 @@ class LogicTwitch(LogicModuleBase):
       del self.streamlink_plugins[streamer_id]
       del self.download_status[streamer_id]
   # _download_thread_function ends
+
 
 
   def _get_speed_from_time(self, time_diff, byte_diff):
@@ -586,8 +599,8 @@ class LogicTwitch(LogicModuleBase):
   def _replace_unavailable_characters_in_filename(self, source):
     replace_list = {
       ':': '∶',
-      '/': '_',
-      '\\': '_',
+      '/': '-',
+      '\\': '-',
       '*': '⁎',
       '?': '？',
       '"': "'",
@@ -673,7 +686,7 @@ class LogicTwitch(LogicModuleBase):
       'do_split': P.ModelSetting.get_bool('twitch_file_split_by_size'),
       'size_limit': P.ModelSetting.get('twitch_file_size_limit'),
       'current_part_number': 0,
-      'size': 'No Size',
+      'size': 0,
       'elapsed_time': 'No time',
       'speed': 'No Speed',
       'streams': {},
@@ -708,7 +721,7 @@ class ModelTwitchItem(db.Model):
   category = db.Column(db.String)
   download_directory = db.Column(db.String)
   download_filenames = db.Column(db.String)
-  file_size = db.Column(db.String)
+  file_size = db.Column(db.BigInteger)
   elapsed_time = db.Column(db.String)
   quality = db.Column(db.String)
   options = db.Column(db.String)
@@ -800,6 +813,16 @@ class ModelTwitchItem(db.Model):
 
   @classmethod
   def plugin_load(cls):
+    items = db.session.query(cls).filter(cls.file_size < 524288).all() # 512 * 1024
+    for item in items:
+      file_list = cls.get_file_list_by_id(item.id)
+      directory = file_list['directory']
+      filenames = file_list['filenames']
+      for filename in filenames:
+        filepath = os.path.join(directory, filename)
+        if os.path.exists(filepath) and os.path.isfile(filepath):
+          shutil_task.remove(filepath)
+      cls.delete_by_id(item.id)
     db.session.query(cls).update({'running': False})
     db.session.commit()
   
@@ -809,7 +832,15 @@ class ModelTwitchItem(db.Model):
     item = cls.get_by_id(single_download_status['db_id'])
     item.running = False
     item.save()
+
+
+  @classmethod
+  def delete_empty_items(cls):
+    db.session.query(cls).filter_by(file_size="No Size").delete()
+    db.session.commit()
+    return True
   
+
   @classmethod
   def get_streamer_ids(cls):
     return [item.streamer_id for item in db.session.query(cls.streamer_id).distinct()]
