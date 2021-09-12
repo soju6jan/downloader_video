@@ -42,8 +42,8 @@
           col=3,
           desc=[
             '저장된 파일이 이 크기를 넘으면 새로 다운로드합니다.', 
-            '파일 명 옵션 중 {part_number} 부분에 1부터 증가하며 저장됩니다.',
-            '{part_number}를 지정하지 않으면 파일명 뒤에 -part{part_number}를 붙입니다.',
+            '파일 명 옵션 중 {part_number} 부분이 1부터 증가하며 저장됩니다.',
+            '{part_number}를 지정하지 않으면 파일명 뒤에 part{part_number}를 붙입니다.',
             '단위 GB, MB'
           ]) }}
       </div>
@@ -113,6 +113,23 @@
     <div class="streamlink_dependency" >
       {{ macros.setting_button([['global_one_execute_sub_btn', '1회 실행']], left='1회 실행' ) }}
       {{ macros.setting_button([['global_reset_db_sub_btn', 'DB 초기화']], left='DB정리' ) }}
+    </div>
+    <div class="row justify-content-center">
+      <div class="col-8">
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+          <strong>Known Issues</strong></br>
+          <hr style="width: 100%; margin:0px; background-color:#808080;" class="my-2">
+          <div class="row">
+            <div class="col">
+              - quality=audio_only 일때 확장자 mp3로 다운로드하는데 재생은 되지만 올바른 파일 포맷이 아님.<br>
+              <br>
+            </div>
+          </div>
+          <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+      </div>
     </div>
   {{ macros.m_tab_content_end() }}
 

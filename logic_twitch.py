@@ -381,6 +381,7 @@ class LogicTwitch(LogicModuleBase):
   def _download_thread_function(self, streamer_id):
     from time import time
     downloaded_bytes = 0
+    update_interval = 2 # secs
 
     download_directory = self.download_status[streamer_id]['download_directory']
     quality = self.download_status[streamer_id]['quality']
@@ -435,7 +436,7 @@ class LogicTwitch(LogicModuleBase):
               break
             current_time_for_status = time()
             current_bytes_for_status = downloaded_bytes
-            if current_time_for_status - before_time_for_status > 3:
+            if current_time_for_status - before_time_for_status > update_interval:
               time_diff = current_time_for_status - before_time_for_status
               byte_diff = current_bytes_for_status - before_bytes_for_status
               speed = self._get_speed_from_time(time_diff, byte_diff)
@@ -469,7 +470,7 @@ class LogicTwitch(LogicModuleBase):
             break
           current_time_for_status = time()
           current_bytes_for_status = downloaded_bytes
-          if current_time_for_status - before_time_for_status > 3:
+          if current_time_for_status - before_time_for_status > update_interval:
             time_diff = current_time_for_status - before_time_for_status
             byte_diff = current_bytes_for_status - before_bytes_for_status
             speed = self._get_speed_from_time(time_diff, byte_diff)
@@ -524,14 +525,16 @@ class LogicTwitch(LogicModuleBase):
     returns next_{filename}.mp4 
     '''
     do_split = self.download_status[streamer_id]['do_split']
-    filename = self.download_status[streamer_id]['filename_format']
+    filename_format = self.download_status[streamer_id]['filename_format']
     is_audio = self.download_status[streamer_id]['quality'] == 'audio_only'
     next_part_number = self.download_status[streamer_id]['current_part_number'] + 1
     if do_split:
       self._set_download_status(streamer_id, {'current_part_number': next_part_number})
-      filename = filename.replace('{part_number}', str(next_part_number))
+      if not '{part_number}' in filename_format: # filename_format 에 {part_number} 가 없을 때
+        filename_format = filename_format + ' part{part_number}'
+      filename = filename_format.replace('{part_number}', str(next_part_number))
     else:
-      filename = filename.replace('{part_number}', '')
+      filename = filename_format.replace('{part_number}', '')
     filename = self._replace_unavailable_characters_in_filename(filename)
     if is_audio:
       filename = filename + '.mp3'
