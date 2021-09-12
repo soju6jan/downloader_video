@@ -63,7 +63,7 @@ class LogicTwitch(LogicModuleBase):
   '''
   'streamer_id': {
     'db_id': 0,
-    'working': bool,
+    'running': bool,
     'enable': bool,
     'online': bool,
     'author': str,
@@ -72,7 +72,7 @@ class LogicTwitch(LogicModuleBase):
     'started_time': 0 or datetime object,
     'quality': '',
     'download_directory': '',
-    'download_filenames': [], # 확장자 없음. 나중에 로직에서 mp4 붙이기
+    'download_filenames': [],
     'filename_format': '',  
     'do_split': bool, 
     'size_limit': '',
@@ -131,14 +131,14 @@ class LogicTwitch(LogicModuleBase):
         return jsonify(database)
       elif sub == 'db_remove':
         db_id = req.form['id']
-        is_running_process = [
+        is_running = len([
           i for i in self.download_status 
-          if int(self.download_status[i]['db_id']) == int(db_id)
-        ]
-        if len(is_running_process) > 0:
-          # 실행중인 프로세스면 안됨.
-          # 어차피 interval 뒤에 다시 다운될건데?
+          if int(self.download_status[i]['db_id']) == int(db_id) and \
+            self.download_status[i]['running']
+        ]) > 0
+        if is_running:
           return jsonify({'ret': False, 'msg': '다운로드 중인 항목입니다.'})
+        
         delete_file = req.form['delete_file'] == 'true'
         if delete_file:
           download_info = ModelTwitchItem.get_file_list_by_id(db_id)
@@ -158,10 +158,10 @@ class LogicTwitch(LogicModuleBase):
     before_streamer_ids = [id for id in self.streamlink_plugins]
     old_streamer_ids = [id for id in before_streamer_ids if id not in streamer_ids]
     new_streamer_ids = [id for id in streamer_ids if id not in before_streamer_ids]
-    for streamer_id in new_streamer_ids:
-      self._clear_properties(streamer_id)
     for streamer_id in old_streamer_ids: 
       self._set_download_status(streamer_id, {'enable': False})
+    for streamer_id in new_streamer_ids:
+      self._clear_properties(streamer_id)
     self._set_streamlink_options()
 
 
@@ -171,7 +171,7 @@ class LogicTwitch(LogicModuleBase):
     status 갱신은 실제 다운로드 로직에서 
     '''
     try:
-      if not self.streamlink_session:
+      if self.streamlink_session is None:
         import streamlink
         self.streamlink_session = streamlink.Streamlink()
         self._set_streamlink_options()
@@ -180,7 +180,7 @@ class LogicTwitch(LogicModuleBase):
       for streamer_id in streamer_ids:
         if not self.download_status[streamer_id]['enable']:
           continue
-        if self.download_status[streamer_id]['working']:
+        if self.download_status[streamer_id]['running']:
           continue
         if self.streamlink_plugins[streamer_id] is None:
           url = 'https://www.twitch.tv/' + streamer_id
@@ -188,7 +188,7 @@ class LogicTwitch(LogicModuleBase):
         is_online = self._is_online(streamer_id)
         if not is_online:
           continue
-        self._set_download_status(streamer_id, {'working': True})
+        self._set_download_status(streamer_id, {'running': True})
         self._download(streamer_id)
     except Exception as e:
       logger.error(f'Exception: {e}')
@@ -248,15 +248,19 @@ class LogicTwitch(LogicModuleBase):
   def _is_online(self, streamer_id):
     return len(self.streamlink_plugins[streamer_id].streams()) > 0
 
+
   def _get_title(self, streamer_id):
     return self.streamlink_plugins[streamer_id].get_title()
-  
+
+
   def _get_author(self, streamer_id):
     return self.streamlink_plugins[streamer_id].get_author()
-  
+
+
   def _get_category(self, streamer_id):
     return self.streamlink_plugins[streamer_id].get_category()
-    
+
+
   def _get_options(self):
     '''
     from P.Modelsetting produces list for options list
@@ -276,6 +280,7 @@ class LogicTwitch(LogicModuleBase):
     ]
     return options
 
+
   def _get_options_string(self):
     result = ''
     options = self._get_options()
@@ -286,7 +291,8 @@ class LogicTwitch(LogicModuleBase):
         result += tup[0] + ' ' + tup[1] + ' True' if tup[2] else ' False'
       result += '\n'
     return result
-  
+
+
   def _set_streamlink_options(self):
     options = self._get_options()
     for option in options:
@@ -360,7 +366,7 @@ class LogicTwitch(LogicModuleBase):
     db_id = ModelTwitchItem.append(streamer_id, self.download_status[streamer_id])
     ModelTwitchItem.set_option_value(db_id, self._get_options_string())
 
-    size_limit = self._units_to_bytes(size_limit)
+    size_limit = self._byte_from_unit(size_limit)
     init_values2 = {
       'db_id': db_id,
       'filename_format': filename_format,
@@ -371,7 +377,7 @@ class LogicTwitch(LogicModuleBase):
     t = threading.Thread(target=self._download_thread_function, args=(streamer_id, ))
     t.setDaemon(True)
     t.start()
-  
+
 
   def _download_thread_function(self, streamer_id):
     from time import time
@@ -383,7 +389,7 @@ class LogicTwitch(LogicModuleBase):
     size_limit = self.download_status[streamer_id]['size_limit']
     chunk_size = self.download_status[streamer_id]['chunk_size']
 
-    size_limit = self._units_to_bytes(size_limit)
+    size_limit = self._byte_from_unit(size_limit)
 
     stream = self.streamlink_plugins[streamer_id].streams()[quality]
     opened_stream = stream.open()
@@ -425,7 +431,7 @@ class LogicTwitch(LogicModuleBase):
               byte_diff = current_bytes_for_status - before_bytes_for_status
               speed = self._get_speed_from_time(time_diff, byte_diff)
               self._set_download_status(streamer_id, {
-                'size': self._bytes_to_units(downloaded_bytes),
+                'size': self._unit_from_byte(downloaded_bytes),
                 'elapsed_time': self._get_timestr_from_seconds(time() - started_time),
                 'speed': speed,
               })
@@ -458,7 +464,7 @@ class LogicTwitch(LogicModuleBase):
             byte_diff = current_bytes_for_status - before_bytes_for_status
             speed = self._get_speed_from_time(time_diff, byte_diff)
             self._set_download_status(streamer_id, {
-              'size': self._bytes_to_units(downloaded_bytes),
+              'size': self._unit_from_byte(downloaded_bytes),
               'elapsed_time': self._get_timestr_from_seconds(time() - started_time),
               'speed': speed,
             })
@@ -467,7 +473,7 @@ class LogicTwitch(LogicModuleBase):
             before_bytes_for_status = current_bytes_for_status
         target.close()
   
-    if os.path.exists(filepath) and os.path.getsize(filepath) < 512 * 1024:
+    if os.path.exists(filepath) and os.path.getsize(filepath) < 512 * 1024: # delete empty file when cancelled
       shutil_task.remove(filepath)
     
     opened_stream.close()
@@ -478,11 +484,11 @@ class LogicTwitch(LogicModuleBase):
       # streamer_ids 업데이트 되어서 삭제 해야할 때
       del self.streamlink_plugins[streamer_id]
       del self.download_status[streamer_id]
-  # ends
+  # _download_thread_function ends
 
 
   def _get_speed_from_time(self, time_diff, byte_diff):
-    return self._bytes_to_units(byte_diff/time_diff) + '/s'
+    return self._unit_from_byte(byte_diff/time_diff) + '/s'
 
 
   def _get_timestr_from_seconds(self, seconds):
@@ -502,7 +508,6 @@ class LogicTwitch(LogicModuleBase):
   def _get_filename(self, streamer_id):
     '''
     update current_part_number, 'download_filenames'
-
     returns next_{filename}.mp4 
     '''
     do_split = self.download_status[streamer_id]['do_split']
@@ -521,7 +526,7 @@ class LogicTwitch(LogicModuleBase):
       filename = filename + '.mp4'
     self._set_download_status(streamer_id, {'download_filenames': self.download_status[streamer_id]['download_filenames'] + [filename]})
     return filename
-  
+
 
   def _get_filepath(self, streamer_id):
     '''
@@ -536,9 +541,9 @@ class LogicTwitch(LogicModuleBase):
       self._clear_properties(streamer_id)
       raise Exception(f'[{streamer_id}] Failed! {filepath} already exists!')
     return filepath
-  
 
-  def _bytes_to_units(self, byte: int or float):
+
+  def _unit_from_byte(self, byte: int or float):
     '''
     returns '23 MB'
     '''
@@ -562,7 +567,7 @@ class LogicTwitch(LogicModuleBase):
     return byte
 
 
-  def _units_to_bytes(self, units: str):
+  def _byte_from_unit(self, units: str):
     '''
     units: '2.8 MB', '4.0KB', ...
     '''
@@ -593,6 +598,7 @@ class LogicTwitch(LogicModuleBase):
     for key in replace_list.keys():
       source = source.replace(key, replace_list[key])
     return source
+
 
   def _parse_string_from_format(self, streamer_id, format_str):
     '''
@@ -653,7 +659,7 @@ class LogicTwitch(LogicModuleBase):
       enable_value = self.download_status[streamer_id]['enable']
     default_values = {
       'db_id': -1,
-      'working': False,
+      'running': False,
       'enable': enable_value,
       'online': False,
       'author': 'No Author',
