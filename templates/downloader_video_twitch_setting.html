@@ -15,7 +15,7 @@
   <form id="setting">
   <div class="tab-content" id="nav-tabContent">
   {{ macros.m_tab_content_start('normal', true) }}
-    {{ macros.info_text_and_buttons('is_streamlink_installed', 'steamlink 설치상태', [['streamlink_install_btn', '설치']], value=arg['is_streamlink_installed'], desc=['도커 지원.', '그외 환경에서는 pip 명령만 보내나 컴파일이 필요한 모듈이 있어 설치가 실패할 수도 있습니다.', '이 경우는 각자 알아서 설치하시기 바랍니다.']) }}
+    {{ macros.info_text_and_buttons('is_streamlink_installed', 'steamlink 설치상태', [['streamlink_install_btn', '설치/업데이트']], value=arg['is_streamlink_installed'], desc=['python3 이상', '단순히 pip 명령만 보내나 컴파일이 필요한 모듈이 있어 설치가 실패할 수도 있습니다.', '이 경우는 각자 알아서 설치하시기 바랍니다.']) }}
     <div class="streamlink_dependency" >
       {{ macros.setting_input_text('streamlink_quality', 'streamlink 화질', col='3', value=arg['streamlink_quality'], desc=['best, worst, audio_only 등', 'ex) 1080p60,best :1080p60이 있으면 그걸 다운하고 없으면 best를 선택함.']) }}
       {{ macros.setting_input_text_and_buttons('twitch_download_path', '저장 폴더',[['select_twitch_download_btn', '경로 선택']], value=arg['twitch_download_path'], desc=['방송 스트림이 저장될 폴더입니다.', '남은 용량이 충분한지 확인하세요.']) }}
@@ -113,24 +113,24 @@
     <div class="streamlink_dependency" >
       {{ macros.setting_button([['global_one_execute_sub_btn', '1회 실행']], left='1회 실행' ) }}
       {{ macros.setting_button([['global_reset_db_sub_btn', 'DB 초기화']], left='DB정리' ) }}
-    </div>
-    <div class="row justify-content-center">
-      <div class="col-8">
-        <div class="alert alert-warning alert-dismissible fade show" role="alert">
-          <strong>Known Issues</strong></br>
-          <hr style="width: 100%; margin:0px; background-color:#808080;" class="my-2">
-          <div class="row">
-            <div class="col">
-              - 원래 동영상 확장자는 .ts 인 것 같은데 .mp4로 다운함. plex 나 로컬에서 문제는 없었음.<br>
-              - quality=audio_only 일때 확장자 .mp3로 다운로드하는데 올바른 포맷은 아니지만, 일단 재생은 가능함.<br>
-              - 확장자 문제는 ffmpeg 로 처리하면 되겠지만, 계획은 없음.<br>
-              - 가끔 stream 에서 data 를 읽어올 때 오류가 발생하는데 자세히 분석할 시간이 안되서 패스함. 일단 에러나면 종료함.<br>
-              <br>
+      <div class="row justify-content-center">
+        <div class="col-8">
+          <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <strong>Known Issues</strong></br>
+            <hr style="width: 100%; margin:0px; background-color:#808080;" class="my-2">
+            <div class="row">
+              <div class="col">
+                - 원래 동영상 확장자는 .ts 인 것 같은데 .mp4로 다운함. plex 나 로컬에서 문제는 없었음.<br>
+                - quality=audio_only 일때 확장자 .mp3로 다운로드하는데 올바른 포맷은 아니지만, 일단 재생은 가능함.<br>
+                - 확장자 문제는 ffmpeg 로 처리하면 되겠지만, 계획은 없음.<br>
+                - 가끔 stream 에서 data 를 읽어올 때 오류가 발생하는데 자세히 분석할 시간이 안되서 패스함. 일단 에러나면 종료함.<br>
+                <br>
+              </div>
             </div>
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
           </div>
-          <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
         </div>
       </div>
     </div>

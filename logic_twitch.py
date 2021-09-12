@@ -227,14 +227,11 @@ class LogicTwitch(LogicModuleBase):
         import system
         import framework.common.util as CommonUtil
         commands = [['msg', u'잠시만 기다려주세요.']]
-        if CommonUtil.is_docker():
-          commands.append(['apk', 'add', '--no-cache', '--virtual', '.build-deps', 'gcc', 'g++', 'make', 'libffi-dev', 'openssl-dev'])
-
-        commands.append([app.config['config']['pip'], 'install', '--upgrade', 'pip'])
-        commands.append([app.config['config']['pip'], 'install', '--upgrade', 'setuptools'])
-        commands.append([app.config['config']['pip'], 'install', 'streamlink'])
-        if CommonUtil.is_docker():
-          commands.append(['apk', 'del', '.build-deps'])
+        if app.config['config']['is_py2']:
+          command.append(['echo', 'python2 이하는 지원하지 않습니다.'])
+        else:
+          commands.append([app.config['config']['pip'], 'install', '--upgrade', 'pip'])
+          commands.append([app.config['config']['pip'], 'install', '--upgrade', 'streamlink'])
         commands.append(['msg', u'설치가 완료되었습니다.'])
         system.SystemLogicCommand.start('설치', commands)
       t = threading.Thread(target=func, args=())
