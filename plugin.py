@@ -17,7 +17,7 @@ class P(object):
     menu = {
         'main' : [package_name, u'비디오 다운로드'],
         'sub' : [
-            ['ani365', u'ani365'], ['aniplus', u'ANIPLUS'], ['twitch', u'Twitch'], ['log', u'로그']
+            ['ani365', u'ani365'], ['aniplus', u'ANIPLUS'], ['twitch', u'Twitch live'], ['log', u'로그']
         ], 
         'category' : 'vod',
         'sub2' : {
