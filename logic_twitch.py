@@ -39,7 +39,7 @@ class LogicTwitch(LogicModuleBase):
     'twitch_filename_format': '[%Y-%m-%d %H:%M][{category}] {title} part{part_number}',
     'twitch_directory_name_format': '{author} ({streamer_id})/%Y-%m',
     'twitch_file_split_by_size': 'True',
-    'twitch_file_size_limit': '2 GB',
+    'twitch_file_size_limit': '2.0 GB',
     'twitch_streamer_ids': '',
     'twitch_auto_make_folder': 'True',
     'twitch_auto_start': 'False',
@@ -365,7 +365,6 @@ class LogicTwitch(LogicModuleBase):
     db_id = ModelTwitchItem.append(streamer_id, self.download_status[streamer_id])
     ModelTwitchItem.set_option_value(db_id, self._get_options_string())
 
-    size_limit = self._byte_from_unit(size_limit)
     init_values2 = {
       'db_id': db_id,
       'filename_format': filename_format,
@@ -507,10 +506,14 @@ class LogicTwitch(LogicModuleBase):
 
   def _get_timestr_from_seconds(self, seconds):
     result = ''
+    days = seconds // (24*60*60)
+    seconds = seconds % (24*60*60)
     hours = seconds // (60*60)
     seconds = seconds % (60*60)
     minutes = seconds // 60
     seconds = seconds % 60
+    if days:
+      result += f'{int(days)}d '
     if hours:
       result += f'{int(hours)}h '
     if minutes:
