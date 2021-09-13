@@ -162,7 +162,11 @@ class LogicTwitch(LogicModuleBase):
     old_streamer_ids = [id for id in before_streamer_ids if id not in streamer_ids]
     new_streamer_ids = [id for id in streamer_ids if id not in before_streamer_ids]
     for streamer_id in old_streamer_ids: 
-      self._set_download_status(streamer_id, {'enable': False})
+      if self.download_status[streamer_id]['running']:
+        self._set_download_status(streamer_id, {'enable': False})
+      else:
+        del self.streamlink_plugins[streamer_id]
+        del self.download_status[streamer_id]
     for streamer_id in new_streamer_ids:
       self._clear_properties(streamer_id)
     self._set_streamlink_options()
