@@ -30,7 +30,7 @@ ModelSetting = P.ModelSetting
 #########################################################
 '''
 TODO:
-audio_only 를 단순히 mp3로 저장하니까 재생이 안되는거같아
+audio_only 를 단순히 mp3로 저장하니까 플레이어에 따라 문제가 있음.
 '''
 class LogicTwitch(LogicModuleBase):
   db_default = {
